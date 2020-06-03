@@ -21,12 +21,13 @@ def run(config):
     if config.save_gifs:
         gif_path = model_path.parent / 'gifs'
         gif_path.mkdir(exist_ok=True)
-
+    torch.manual_seed(config.seed)
+    np.random.seed(config.seed)
     maddpg = MADDPG.init_from_save(model_path)
     env = make_env(config.env_id, benchmark=True, discrete_action=maddpg.discrete_action)
     maddpg.prep_rollouts(device='cpu')
     ifi = 1 / config.fps  # inter-frame interval
-
+    all_infos = np.zeros((config.n_episodes, config.episode_length, 4))
     for ep_i in range(config.n_episodes):
         print("Episode %i of %i" % (ep_i + 1, config.n_episodes))
         obs = env.reset()
@@ -45,6 +46,7 @@ def run(config):
             # convert actions to numpy arrays
             actions = [ac.data.numpy().flatten() for ac in torch_actions]
             obs, rewards, dones, infos = env.step(actions)
+
             if config.save_gifs:
                 frames.append(env.render('rgb_array')[0])
             calc_end = time.time()
@@ -52,6 +54,8 @@ def run(config):
             if elapsed < ifi:
                 time.sleep(ifi - elapsed)
             env.render('human')
+            all_infos[ep_i, t_i] = np.array(infos['n'][0])
+
         if config.save_gifs:
             gif_num = 0
             while (gif_path / ('%i_%i.gif' % (gif_num, ep_i))).exists():
@@ -60,6 +64,11 @@ def run(config):
                             frames, duration=ifi)
 
     env.close()
+    collisions = np.any(all_infos[:, :, 1] > 0, axis=1).mean()
+    avg_dist = all_infos[:, -1, 2].mean() * len(env.agents)
+
+    print(f'collisions = {collisions:.3f}')
+    print(f'min_dist = {avg_dist:.3f}')
 
 
 if __name__ == '__main__':
@@ -67,6 +76,9 @@ if __name__ == '__main__':
     parser.add_argument("env_id", help="Name of environment")
     parser.add_argument("model_name",
                         help="Name of model")
+    parser.add_argument("--seed",
+                        default=1, type=int,
+                        help="Random seed")
     parser.add_argument("run_num", default=1, type=int)
     parser.add_argument("--save_gifs", action="store_true",
                         help="Saves gif of each episode into model directory")
