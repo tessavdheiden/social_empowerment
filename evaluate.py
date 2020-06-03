@@ -23,7 +23,7 @@ def run(config):
         gif_path.mkdir(exist_ok=True)
 
     maddpg = MADDPG.init_from_save(model_path)
-    env = make_env(config.env_id, discrete_action=maddpg.discrete_action)
+    env = make_env(config.env_id, benchmark=True, discrete_action=maddpg.discrete_action)
     maddpg.prep_rollouts(device='cpu')
     ifi = 1 / config.fps  # inter-frame interval
 
