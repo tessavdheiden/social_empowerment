@@ -7,7 +7,7 @@ from pathlib import Path
 from torch.autograd import Variable
 from utils.make_env import make_env
 from algorithms.maddpg import MADDPG
-
+from numpy import save
 
 def run(config):
     model_path = (Path('./models') / config.env_id / config.model_name /
@@ -28,6 +28,7 @@ def run(config):
     maddpg.prep_rollouts(device='cpu')
     ifi = 1 / config.fps  # inter-frame interval
     all_infos = np.zeros((config.n_episodes, config.episode_length, 4))
+    all_positions = np.zeros((config.n_episodes, config.episode_length, 3 * 2))
     for ep_i in range(config.n_episodes):
         print("Episode %i of %i" % (ep_i + 1, config.n_episodes))
         obs = env.reset()
@@ -41,6 +42,7 @@ def run(config):
             torch_obs = [Variable(torch.Tensor(obs[i]).view(1, -1),
                                   requires_grad=False)
                          for i in range(maddpg.nagents)]
+            all_positions[ep_i, t_i] = np.asarray([obs[i][2:4] for i in range(maddpg.nagents)]).reshape(-1)
             # get actions as torch Variables
             torch_actions = maddpg.step(torch_obs, explore=False)
             # convert actions to numpy arrays
@@ -54,7 +56,7 @@ def run(config):
             if elapsed < ifi:
                 time.sleep(ifi - elapsed)
             env.render('human')
-            all_infos[ep_i, t_i] = np.array(infos['n'][0])
+            all_infos[ep_i][t_i] = np.array(infos['n'][0])
 
         if config.save_gifs:
             gif_num = 0
@@ -64,11 +66,12 @@ def run(config):
                             frames, duration=ifi)
 
     env.close()
-    collisions = np.any(all_infos[:, :, 1] > 0, axis=1).mean()
-    avg_dist = all_infos[:, -1, 2].mean() * len(env.agents)
 
-    print(f'collisions = {collisions:.3f}')
-    print(f'min_dist = {avg_dist:.3f}')
+    if config.save_stats:
+        stats_path = model_path.parent / 'stats'
+        stats_path.mkdir(exist_ok=True)
+        save(f'{stats_path}/all_infos.npy', all_infos)
+        save(f'{stats_path}/all_positions.npy', all_positions)
 
 
 if __name__ == '__main__':
@@ -81,6 +84,8 @@ if __name__ == '__main__':
                         help="Random seed")
     parser.add_argument("run_num", default=1, type=int)
     parser.add_argument("--save_gifs", action="store_true",
+                        help="Saves gif of each episode into model directory")
+    parser.add_argument("--save_stats", action="store_true",
                         help="Saves gif of each episode into model directory")
     parser.add_argument("--incremental", default=None, type=int,
                         help="Load incremental policy from given episode " +
