@@ -3,6 +3,7 @@ import torch
 import time
 import os
 import numpy as np
+import itertools
 from gym.spaces import Box, Discrete
 from pathlib import Path
 from torch.autograd import Variable
@@ -11,6 +12,8 @@ from utils.make_env import make_env
 from utils.buffer import ReplayBuffer
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 from algorithms.maddpg import MADDPG
+from estimate_empowerment import estimate_empowerment_from_positions
+from algorithms.compute_transition import compute_transition_nstep, compute_transition
 
 USE_CUDA = False  # torch.cuda.is_available()
 
@@ -60,6 +63,9 @@ def run(config):
                                  [acsp.shape[0] if isinstance(acsp, Box) else acsp.n
                                   for acsp in env.action_space])
     t = 0
+    dims=(5,5)
+    Tn = compute_transition_nstep(T=compute_transition(n_agents=3, dims=dims), n_step=1)
+    locations = np.array(list(itertools.permutations(np.arange(dims[0] * dims[1]), 3)), dtype='uint8')
     for ep_i in range(0, config.n_episodes, config.n_rollout_threads):
         print("Episodes %i-%i of %i" % (ep_i + 1,
                                         ep_i + 1 + config.n_rollout_threads,
@@ -84,6 +90,9 @@ def run(config):
             # rearrange actions to be per environment
             actions = [[ac[i] for ac in agent_actions] for i in range(config.n_rollout_threads)]
             next_obs, rewards, dones, infos = env.step(actions)
+
+            rewards += estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=Tn, locations=locations)
+
             replay_buffer.push(obs, agent_actions, rewards, next_obs, dones)
             obs = next_obs
             t += config.n_rollout_threads

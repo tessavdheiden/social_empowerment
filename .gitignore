@@ -104,3 +104,4 @@ ENV/
 .mypy_cache/
 .idea
 *.png
+*.DS_Store

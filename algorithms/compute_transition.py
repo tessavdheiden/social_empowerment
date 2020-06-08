@@ -23,8 +23,9 @@ def _cell_to_index(cell, dims):
 def _location_to_index(locations, locs):
     return np.where(np.all(locations == locs, axis=1))[0][0]
 
+vecmod = np.vectorize(lambda x, y : x % y)
 
-def act(s, a, dims, prob = 1.):
+def act(s, a, dims, prob = 1., toroidal=False):
     """ get updated state after action
     s  : state, index of grid position
     a : action
@@ -37,7 +38,9 @@ def act(s, a, dims, prob = 1.):
 
     new_state = state + actions[a]
     # can't move off grid
-    if np.any(new_state < np.zeros(2)) or np.any(new_state >= dims):
+    if toroidal:
+        new_state = vecmod(new_state, dims)
+    elif np.any(new_state < np.zeros(2)) or np.any(new_state >= dims):
         return _cell_to_index(state, dims)
     return _cell_to_index(new_state, dims)
 

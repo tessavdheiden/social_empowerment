@@ -28,7 +28,7 @@ def run(config):
     maddpg.prep_rollouts(device='cpu')
     ifi = 1 / config.fps  # inter-frame interval
     all_infos = np.zeros((config.n_episodes, config.episode_length, 4))
-    all_positions = np.zeros((config.n_episodes, config.episode_length, 3 * 2))
+    all_positions = np.zeros((config.n_episodes, config.episode_length, maddpg.nagents, 2))
     for ep_i in range(config.n_episodes):
         print("Episode %i of %i" % (ep_i + 1, config.n_episodes))
         obs = env.reset()
@@ -42,7 +42,8 @@ def run(config):
             torch_obs = [Variable(torch.Tensor(obs[i]).view(1, -1),
                                   requires_grad=False)
                          for i in range(maddpg.nagents)]
-            all_positions[ep_i, t_i] = np.asarray([obs[i][2:4] for i in range(maddpg.nagents)]).reshape(-1)
+
+            all_positions[ep_i, t_i] = np.asarray([a.state.p_pos for a in env.world.agents])
             # get actions as torch Variables
             torch_actions = maddpg.step(torch_obs, explore=False)
             # convert actions to numpy arrays
@@ -90,7 +91,7 @@ if __name__ == '__main__':
     parser.add_argument("--incremental", default=None, type=int,
                         help="Load incremental policy from given episode " +
                              "rather than final policy")
-    parser.add_argument("--n_episodes", default=10, type=int)
+    parser.add_argument("--n_episodes", default=50, type=int)
     parser.add_argument("--episode_length", default=25, type=int)
     parser.add_argument("--fps", default=30, type=int)
 

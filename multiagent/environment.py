@@ -262,6 +262,9 @@ class MultiAgentEnv(gym.Env):
 
         return results
 
+    def get_positions(self):
+        return [agent.state.p_pos for agent in self.world.agents]
+
     # create receptor field locations in local coordinate frame
     def _make_receptor_locations(self, agent):
         receptor_type = 'polar'

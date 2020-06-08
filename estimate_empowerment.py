@@ -8,12 +8,47 @@ from algorithms.compute_transition import compute_transition, compute_transition
 from algorithms.info_theory import blahut_arimoto
 
 
-def _positions_to_cell(position, x_lim_in=(-1, 1), y_lim_in=(-1, 1), x_lim_out=(0, 3), y_lim_out=(0, 3)):
+def estimate_empowerment_from_positions(ps, Tn, locations, dims=(3, 3)):
+    cells = np.array([_positions_to_cell(pose, x_lim_out=(0, dims[0]), y_lim_out=(0, dims[1])) for pose in
+                      ps]).reshape(-1, 2)
+
+    if (not _cells_in_collision(cells)) and (not _cells_outside_bounds(cells, dims)):
+        ls = np.array([_cell_to_index(c, dims=dims) for c in cells])
+        if not _locations_in_collision(ls):
+            ss = _location_to_index(locs=ls, locations=locations)
+            return empowerment(Tn, det=1., n_step=1, state=ss)
+    return 0.
+
+
+def _positions_to_cell(ps, x_lim_in=(-1, 1), y_lim_in=(-1, 1), x_lim_out=(0, 3), y_lim_out=(0, 3)):
     def transform(p, lim_in, lim_out):
         p_out = (p - lim_in[0]) / (lim_in[1] - lim_in[0])
         return int(np.clip(p_out * (lim_out[1] - lim_out[0]) + lim_out[0], a_min=lim_out[0], a_max=lim_out[1]))
 
-    return np.array([transform(position[1], y_lim_in, y_lim_out), transform(position[0], x_lim_in, x_lim_out)])
+    return np.array([transform(ps[1], y_lim_in, y_lim_out), transform(ps[0], x_lim_in, x_lim_out)])
+
+def _cells_in_collision(cells):
+    for i in range(len(cells)):
+        for j in range(len(cells)):
+            if i == j: continue
+            if np.array_equal(cells[i], cells[j]):
+                return True
+    return False
+
+def _locations_in_collision(locations):
+    for i in range(len(locations)):
+        for j in range(len(locations)):
+            if i == j: continue
+            if np.array_equal(locations[i], locations[j]):
+                return True
+    return False
+
+def _cells_outside_bounds(cells, dims):
+    for cell in cells:
+        if np.any(cell < np.zeros(2)) or np.any(cell >= dims):
+            return True
+    return False
+
 
 
 def empowerment(T, det, n_step, state, n_samples=1000, epsilon=1e-6):
@@ -77,6 +112,7 @@ if __name__ == '__main__':
     import argparse
     import matplotlib.pyplot as plt
 
+
     parser = argparse.ArgumentParser()
     parser.add_argument("env_id", help="Name of environment")
     parser.add_argument("model_name",
@@ -98,32 +134,25 @@ if __name__ == '__main__':
     episode_length = len(all_positions[0])
     fig, ax = plt.subplots(nrows=2, ncols=episode_length, figsize=(20, 10))
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
-    Tn = compute_transition_nstep(T=compute_transition(n_agents=3, dims=(3, 3)), n_step=1)
-    locations = np.array(list(itertools.permutations(np.arange(3*3), 3)), dtype='uint8')
+
+    dims = (3, 3)
+    Tn = compute_transition_nstep(T=compute_transition(n_agents=3, dims=dims), n_step=1)
+    locations = np.array(list(itertools.permutations(np.arange(dims[0]*dims[1]), 3)), dtype='uint8')
     for ep_i in range(n_episodes):
-        if ep_i > 0: break
+        if ep_i != 1: continue
         for t_i in range(0, episode_length):
-            positions = all_positions[ep_i][t_i].reshape(-1, 2)
-            ax[0, t_i].scatter(positions[:, 0], positions[:, 1])
+            positions = all_positions[ep_i][t_i]
+            [ax[0, t_i].add_artist(plt.Circle((p[0], p[1]), 0.15)) for p in positions]
             ax[0, t_i].axis('square')
             ax[0, t_i].set(xlim=(-1, 1), ylim=(-1, 1))
 
-            cells = np.array([_positions_to_cell(position, x_lim_out=(0, 3), y_lim_out=(0, 3)) for position in positions]).reshape(-1, 2)
-            locs = np.array([_cell_to_index(cell, dims=(3, 3)) for cell in cells])
+            cells = np.array([_positions_to_cell(position, x_lim_out=(0, dims[0]), y_lim_out=(0, dims[1])) for position in positions]).reshape(-1, 2)
 
-            ax[1, t_i].scatter(cells[:, 1], cells[:, 0])
+            [ax[1, t_i].add_artist(plt.Circle((p[1]+.5, p[0]+.5), 0.5)) for p in cells]
             ax[1, t_i].axis('square')
-            ax[1, t_i].set(xlim=(0, 3), ylim=(0, 3))
-            collision = False
-            for i in range(len(cells)):
-                for j in range(len(cells)):
-                    if i == j: continue
-                    if np.array_equal(cells[i], cells[j]):
-                        collision = True
-                        break
-            if not collision:
-                s = _location_to_index(locs=locs, locations=locations)
-                E = empowerment(Tn, det=1., n_step=1, state=s)
-                ax[1, t_i].set_xlabel(f'E={E:.2f}')
+            ax[1, t_i].set(xlim=(0, dims[1]), ylim=(0, dims[0]))
+
+            E = estimate_empowerment_from_positions(positions, Tn=Tn, locations=locations, dims=dims)
+            ax[1, t_i].set_xlabel(f'E={E:.2f}')
 
     plt.savefig('tmp.png')

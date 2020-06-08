@@ -15,11 +15,11 @@ def print_table(config):
     all_infos = load(f'{stats_path}/all_infos.npy')
     if config.env_id == 'simple_spread':
         n_agents = 3
-        collisions = np.any(all_infos[:, :, 1] > 0, axis=1).mean()
+        collisions = np.any(all_infos[:, :, 1] > 1, axis=1).mean()
         avg_dist = all_infos[:, -1, 2].mean() * n_agents
 
         print(f'collisions = {collisions:.3f} maximal one per episode and averaged over {len(all_infos)} episodes')
-        print(f'episodes in collision = {np.argwhere(np.any(all_infos[:, :, 1] > 0, axis=1)).reshape(-1)}')
+        print(f'episodes in collision = {np.argwhere(np.any(all_infos[:, :, 1] > 1, axis=1)).reshape(-1)}')
         print(f'min_dist = {avg_dist:.3f} minimal distance at end of episode and averaged over {len(all_infos)} episodes')
 
 

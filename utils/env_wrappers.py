@@ -93,6 +93,11 @@ class SubprocVecEnv(VecEnv):
             p.join()
         self.closed = True
 
+    def get_positions(self):
+        for remote in self.remotes:
+            remote.send(('get_positions', None))
+        return np.stack([remote.recv() for remote in self.remotes])
+
 
 class DummyVecEnv(VecEnv):
     def __init__(self, env_fns):
@@ -127,3 +132,6 @@ class DummyVecEnv(VecEnv):
 
     def close(self):
         return
+
+    def get_positions(self):
+        return np.array([env.get_positions() for env in self.envs])
