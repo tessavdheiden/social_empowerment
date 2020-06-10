@@ -98,3 +98,57 @@ class Scenario(BaseScenario):
             comm.append(other.state.c)
             other_pos.append(other.state.p_pos - agent.state.p_pos)
         return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + comm)
+
+
+from multiagent.scenarios.mdp import BaseMDP
+from multiagent.scenarios.transition_utils import actions, act, switch_places, _location_to_index
+import itertools
+from functools import reduce
+
+
+class MDP(BaseMDP):
+    def __init__(self, n_agents, dims, n_step):
+        n_locations = dims[0] * dims[1]
+        self.configurations = np.array(list(itertools.permutations(np.arange(n_locations), n_agents)))
+        self.T = self.compute_transition(n_agents=n_agents, dims=dims, locations=self.configurations)
+        self.Tn = self.compute_transition_nstep(T=self.T, n_step=n_step)
+
+    def compute_transition(self, n_agents, dims, locations, det=1.):
+
+        a_list = list(itertools.product(actions.keys(), repeat=n_agents))
+        n_actions = len(a_list)
+
+        n_configs = len(locations)
+        # compute environment dynamics as a matrix T
+        T = np.zeros([n_configs, n_actions, n_configs], dtype='uint8')
+        # T[s',a,s] is the probability of landing in s' given action a is taken in state s.
+        for c, locs in enumerate(locations):
+            for i, alist in enumerate(a_list):
+                locs_new = [act(locs[j], alist[j], dims) for j in range(n_agents)]
+
+                # any of the agents on same location, do not move
+                if len(set(locs_new)) < n_agents or switch_places(locs, locs_new):
+                    locs_new = locs
+
+                c_new = _location_to_index(locations, locs_new)
+                T[c_new, i, c] += det
+
+                if det == 1: continue
+                locs_unc = np.array(
+                    [list(map(lambda x: act(locs[j], x, dims, det), filter(lambda x: x != alist[j], actions.keys())))
+                     for j in range(n_agents)]).T
+                assert locs_unc.shape == ((len(actions) - 1), n_agents)
+
+                for lu in locs_unc:
+                    if np.all(lu == lu[0]): continue  # collision
+                    c_unc = _location_to_index(locations, lu)
+                    T[c_unc, i, c] += (1 - det) / (len(locs_unc))
+        return T
+
+    def compute_transition_nstep(self, T, n_step):
+        n_states, n_actions, _ = T.shape
+        nstep_actions = np.array(list(itertools.product(range(n_actions), repeat=n_step)))
+        Bn = np.zeros([n_states, len(nstep_actions), n_states], dtype='uint8')
+        for i, an in enumerate(nstep_actions):
+            Bn[:, i, :] = reduce((lambda x, y: np.dot(y, x)), map((lambda a: T[:, a, :]), an))
+        return Bn

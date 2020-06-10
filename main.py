@@ -13,9 +13,12 @@ from utils.buffer import ReplayBuffer
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 from algorithms.maddpg import MADDPG
 from estimate_empowerment import estimate_empowerment_from_positions
-from algorithms.compute_transition import compute_transition_nstep, compute_transition
+from multiagent.scenarios.simple_spread import MDP
 
 USE_CUDA = False  # torch.cuda.is_available()
+
+
+
 
 def make_parallel_env(env_id, n_rollout_threads, seed, discrete_action):
     def get_env_fn(rank):
@@ -64,8 +67,7 @@ def run(config):
                                   for acsp in env.action_space])
     t = 0
     dims = (3, 3)
-    Tn = compute_transition_nstep(T=compute_transition(n_agents=maddpg.nagents, dims=dims), n_step=1)
-    locations = np.array(list(itertools.permutations(np.arange(dims[0] * dims[1]), maddpg.nagents)), dtype='uint8')
+    mdp = MDP(n_agents=maddpg.nagents, dims=dims, n_step=1)
     for ep_i in range(0, config.n_episodes, config.n_rollout_threads):
         print("Episodes %i-%i of %i" % (ep_i + 1,
                                         ep_i + 1 + config.n_rollout_threads,
@@ -91,7 +93,7 @@ def run(config):
             actions = [[ac[i] for ac in agent_actions] for i in range(config.n_rollout_threads)]
             next_obs, rewards, dones, infos = env.step(actions)
 
-            emps = np.ones_like(rewards) * estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=Tn, locations=locations) if config.with_empowerment else np.zeros_like(rewards)
+            emps = np.ones_like(rewards) * estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=mdp.Tn, locations=mdp.configurations) if config.with_empowerment else np.zeros_like(rewards)
 
             replay_buffer.push(obs, agent_actions, rewards, emps, next_obs, dones)
             obs = next_obs

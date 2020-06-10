@@ -86,13 +86,18 @@ class ReplayBuffer(object):
                               self.rew_buffs[i][:self.filled_i].mean()) /
                              self.rew_buffs[i][:self.filled_i].std())
                         for i in range(self.num_agents)]
+            ret_emps =  [cast((self.emp_buffs[i][inds] -
+                              self.emp_buffs[i][:self.filled_i].mean()) /
+                             self.emp_buffs[i][:self.filled_i].std())
+                        for i in range(self.num_agents)]
         else:
             ret_rews = [cast(self.rew_buffs[i][inds]) for i in range(self.num_agents)]
+            ret_emps = [cast(self.emp_buffs[i][inds]) for i in range(self.num_agents)]
 
         return ([cast(self.obs_buffs[i][inds]) for i in range(self.num_agents)],
                 [cast(self.ac_buffs[i][inds]) for i in range(self.num_agents)],
                 ret_rews,
-                [cast(self.emp_buffs[i][inds]) for i in range(self.num_agents)],
+                ret_emps,
                 [cast(self.next_obs_buffs[i][inds]) for i in range(self.num_agents)],
                 [cast(self.done_buffs[i][inds]) for i in range(self.num_agents)])
 
