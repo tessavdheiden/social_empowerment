@@ -21,24 +21,27 @@ All training code is contained within `main.py`. To view options simply run:
 python main.py --help
 ```
 
+If you want to checkout the training loss on tensorboard, activate the VE and use:
+
+```
+tensorboard --logdir models/model_name
+```
+
 ## Results
 
 ### Cooperative Navigation
 
-| Method | MADDPG | MADDPG+E |
-| :---: | :---: | :---: |
-| Average dist. | 1.767 | 1.581 |
-| # collisions | 0.209 | 0.102 |
-
-### Physical Deception
-
-In this task, the two blue agents are rewarded by minimizing the closest of their distances to the green landmark (only one needs to be close to get optimal reward), while maximizing the distance of the red adversary from the green landmark. The red adversary is rewarded by minimizing it's distance to the green landmark; however, on any given trial, it does not know which landmark is green, so it must follow the blue agents. As such, the blue agents should learn to deceive the red agent by covering *both* landmarks.
+| Agent     | Average dist. | # collisions |
+| :---:     | :---:         | :---: |
+| MADDPG    | 1.767         | 0.209 |
+| DDPG      | 1.858         | 0.375 |
+| MADDPG+E  | 1.980         | 0.020 |
 
 ### Cooperative Communication
 
-This task involves two agents, one that is stationary and one that can move. The stationary agent sees the color of the other agent as its observation, and outputs a one-hot communication vector as its action. The moving agent receives the communication vector, as well as its relative distance to all landmarks on the screen; however, it does not know its own color. The goal of both agents is for the moving agent to reach the landmark that matches its own color. Thus, the agents must learn to communicate such that the moving agent knows where to go on each randomized trial.
-
-### Predator-Prey
-
-This task involves a single prey agent (in green) and a team of three predators (in red). The prey agent is 30% faster than the predators, so the predators must learn how to team up in order to catch the prey.
+| Agent     | Taget reach % | Average distance |
+| :---:     | :---:         | :---: |
+| MADDPG    | 84.0         | 0.133 |
+| DDPG      | 32.0         | 0.456 |
+| MADDPG+E  | 82.8         | 0.212 |
 

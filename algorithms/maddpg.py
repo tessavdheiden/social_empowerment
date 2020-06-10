@@ -92,7 +92,7 @@ class MADDPG(object):
             logger (SummaryWriter from Tensorboard-Pytorch):
                 If passed in, important quantities will be logged
         """
-        obs, acs, rews, next_obs, dones = sample
+        obs, acs, rews, emps, next_obs, dones = sample
         curr_agent = self.agents[agent_i]
 
         curr_agent.critic_optimizer.zero_grad()
@@ -115,7 +115,7 @@ class MADDPG(object):
                 trgt_vf_in = torch.cat((next_obs[agent_i],
                                         curr_agent.target_policy(next_obs[agent_i])),
                                        dim=1)
-        target_value = (rews[agent_i].view(-1, 1) + self.gamma *
+        target_value = (rews[agent_i].view(-1, 1) + emps[agent_i].view(-1, 1) + self.gamma *
                         curr_agent.target_critic(trgt_vf_in) *
                         (1 - dones[agent_i].view(-1, 1)))
 

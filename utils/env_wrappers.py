@@ -19,6 +19,9 @@ def worker(remote, parent_remote, env_fn_wrapper):
         elif cmd == 'reset':
             ob = env.reset()
             remote.send(ob)
+        elif cmd == 'get_positions':
+            positions = env.get_positions()
+            remote.send(positions)
         elif cmd == 'reset_task':
             ob = env.reset_task()
             remote.send(ob)

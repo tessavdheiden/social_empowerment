@@ -63,9 +63,9 @@ def run(config):
                                  [acsp.shape[0] if isinstance(acsp, Box) else acsp.n
                                   for acsp in env.action_space])
     t = 0
-    dims=(5,5)
-    Tn = compute_transition_nstep(T=compute_transition(n_agents=3, dims=dims), n_step=1)
-    locations = np.array(list(itertools.permutations(np.arange(dims[0] * dims[1]), 3)), dtype='uint8')
+    dims = (3, 3)
+    Tn = compute_transition_nstep(T=compute_transition(n_agents=maddpg.nagents, dims=dims), n_step=1)
+    locations = np.array(list(itertools.permutations(np.arange(dims[0] * dims[1]), maddpg.nagents)), dtype='uint8')
     for ep_i in range(0, config.n_episodes, config.n_rollout_threads):
         print("Episodes %i-%i of %i" % (ep_i + 1,
                                         ep_i + 1 + config.n_rollout_threads,
@@ -91,9 +91,9 @@ def run(config):
             actions = [[ac[i] for ac in agent_actions] for i in range(config.n_rollout_threads)]
             next_obs, rewards, dones, infos = env.step(actions)
 
-            rewards += estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=Tn, locations=locations)
+            emps = np.ones_like(rewards) * estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=Tn, locations=locations) if config.with_empowerment else np.zeros_like(rewards)
 
-            replay_buffer.push(obs, agent_actions, rewards, next_obs, dones)
+            replay_buffer.push(obs, agent_actions, rewards, emps, next_obs, dones)
             obs = next_obs
             t += config.n_rollout_threads
             if (len(replay_buffer) >= config.batch_size and
@@ -157,6 +157,8 @@ if __name__ == '__main__':
                         default="MADDPG", type=str,
                         choices=['MADDPG', 'DDPG'])
     parser.add_argument("--discrete_action",
+                        action='store_true')
+    parser.add_argument("--with_empowerment",
                         action='store_true')
 
     config = parser.parse_args()

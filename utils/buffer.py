@@ -20,12 +20,14 @@ class ReplayBuffer(object):
         self.obs_buffs = []
         self.ac_buffs = []
         self.rew_buffs = []
+        self.emp_buffs = []
         self.next_obs_buffs = []
         self.done_buffs = []
         for odim, adim in zip(obs_dims, ac_dims):
             self.obs_buffs.append(np.zeros((max_steps, odim)))
             self.ac_buffs.append(np.zeros((max_steps, adim)))
             self.rew_buffs.append(np.zeros(max_steps))
+            self.emp_buffs.append(np.zeros(max_steps))
             self.next_obs_buffs.append(np.zeros((max_steps, odim)))
             self.done_buffs.append(np.zeros(max_steps))
 
@@ -36,7 +38,7 @@ class ReplayBuffer(object):
     def __len__(self):
         return self.filled_i
 
-    def push(self, observations, actions, rewards, next_observations, dones):
+    def push(self, observations, actions, rewards, emps, next_observations, dones):
         nentries = observations.shape[0]  # handle multiple parallel environments
         if self.curr_i + nentries > self.max_steps:
             rollover = self.max_steps - self.curr_i # num of indices to roll over
@@ -46,6 +48,8 @@ class ReplayBuffer(object):
                 self.ac_buffs[agent_i] = np.roll(self.ac_buffs[agent_i],
                                                  rollover, axis=0)
                 self.rew_buffs[agent_i] = np.roll(self.rew_buffs[agent_i],
+                                                  rollover)
+                self.emp_buffs[agent_i] = np.roll(self.emp_buffs[agent_i],
                                                   rollover)
                 self.next_obs_buffs[agent_i] = np.roll(
                     self.next_obs_buffs[agent_i], rollover, axis=0)
@@ -59,6 +63,7 @@ class ReplayBuffer(object):
             # actions are already batched by agent, so they are indexed differently
             self.ac_buffs[agent_i][self.curr_i:self.curr_i + nentries] = actions[agent_i]
             self.rew_buffs[agent_i][self.curr_i:self.curr_i + nentries] = rewards[:, agent_i]
+            self.emp_buffs[agent_i][self.curr_i:self.curr_i + nentries] = emps[:, agent_i]
             self.next_obs_buffs[agent_i][self.curr_i:self.curr_i + nentries] = np.vstack(
                 next_observations[:, agent_i])
             self.done_buffs[agent_i][self.curr_i:self.curr_i + nentries] = dones[:, agent_i]
@@ -75,6 +80,7 @@ class ReplayBuffer(object):
             cast = lambda x: Variable(Tensor(x), requires_grad=False).cuda()
         else:
             cast = lambda x: Variable(Tensor(x), requires_grad=False)
+
         if norm_rews:
             ret_rews = [cast((self.rew_buffs[i][inds] -
                               self.rew_buffs[i][:self.filled_i].mean()) /
@@ -82,9 +88,11 @@ class ReplayBuffer(object):
                         for i in range(self.num_agents)]
         else:
             ret_rews = [cast(self.rew_buffs[i][inds]) for i in range(self.num_agents)]
+
         return ([cast(self.obs_buffs[i][inds]) for i in range(self.num_agents)],
                 [cast(self.ac_buffs[i][inds]) for i in range(self.num_agents)],
                 ret_rews,
+                [cast(self.emp_buffs[i][inds]) for i in range(self.num_agents)],
                 [cast(self.next_obs_buffs[i][inds]) for i in range(self.num_agents)],
                 [cast(self.done_buffs[i][inds]) for i in range(self.num_agents)])
 

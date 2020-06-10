@@ -135,7 +135,7 @@ if __name__ == '__main__':
     fig, ax = plt.subplots(nrows=2, ncols=episode_length, figsize=(20, 10))
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
 
-    dims = (3, 3)
+    dims = (5, 5)
     Tn = compute_transition_nstep(T=compute_transition(n_agents=3, dims=dims), n_step=1)
     locations = np.array(list(itertools.permutations(np.arange(dims[0]*dims[1]), 3)), dtype='uint8')
     for ep_i in range(n_episodes):
