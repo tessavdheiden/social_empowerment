@@ -93,7 +93,7 @@ def run(config):
             actions = [[ac[i] for ac in agent_actions] for i in range(config.n_rollout_threads)]
             next_obs, rewards, dones, infos = env.step(actions)
 
-            emps = np.ones_like(rewards) * estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=mdp.Tn, locations=mdp.configurations) if config.with_empowerment else np.zeros_like(rewards)
+            emps = np.ones_like(rewards) * estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=mdp.Tn, locations=mdp.configurations) if config.with_empowerment else rewards
 
             replay_buffer.push(obs, agent_actions, rewards, emps, next_obs, dones)
             obs = next_obs

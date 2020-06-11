@@ -101,21 +101,49 @@ class Scenario(BaseScenario):
 
 
 from multiagent.scenarios.mdp import BaseMDP
-from multiagent.scenarios.transition_utils import actions, act, switch_places, _location_to_index
+from multiagent.scenarios.transition_utils import switch_places, _location_to_index, _index_to_cell, _cell_to_index, vecmod
 import itertools
 from functools import reduce
 
 
 class MDP(BaseMDP):
     def __init__(self, n_agents, dims, n_step):
-        n_locations = dims[0] * dims[1]
-        self.configurations = np.array(list(itertools.permutations(np.arange(n_locations), n_agents)))
+
+        self.configurations = np.array(list(itertools.permutations(np.arange(dims[0] * dims[1]), n_agents)))
+        self.actions = {
+            "N": np.array([1, 0]),      # UP
+            "S": np.array([-1, 0]),     # DOWN
+            "E": np.array([0, 1]),      # RIGHT
+            "W": np.array([0, -1]),     # LEFT
+            "_": np.array([0, 0])       # STAY
+        }
+
         self.T = self.compute_transition(n_agents=n_agents, dims=dims, locations=self.configurations)
         self.Tn = self.compute_transition_nstep(T=self.T, n_step=n_step)
 
+    def act(self, s, a, dims, prob=1., toroidal=False):
+        """ get updated state after action
+        s  : state, index of grid position
+        a : action
+        prob : probability of performing action
+        """
+        rnd = np.random.rand()
+        if rnd > prob:
+            a = np.random.choice(list(filter(lambda x: x != a, actions.keys())))
+        state = _index_to_cell(s, dims)
+
+        new_state = state + self.actions[a]
+        # can't move off grid
+        if toroidal:
+            new_state = vecmod(new_state, dims)
+        elif np.any(new_state < np.zeros(2)) or np.any(new_state >= dims):
+            return _cell_to_index(state, dims)
+        return _cell_to_index(new_state, dims)
+
+
     def compute_transition(self, n_agents, dims, locations, det=1.):
 
-        a_list = list(itertools.product(actions.keys(), repeat=n_agents))
+        a_list = list(itertools.product(self.actions.keys(), repeat=n_agents))
         n_actions = len(a_list)
 
         n_configs = len(locations)
@@ -124,7 +152,7 @@ class MDP(BaseMDP):
         # T[s',a,s] is the probability of landing in s' given action a is taken in state s.
         for c, locs in enumerate(locations):
             for i, alist in enumerate(a_list):
-                locs_new = [act(locs[j], alist[j], dims) for j in range(n_agents)]
+                locs_new = [self.act(locs[j], alist[j], dims) for j in range(n_agents)]
 
                 # any of the agents on same location, do not move
                 if len(set(locs_new)) < n_agents or switch_places(locs, locs_new):
@@ -135,9 +163,9 @@ class MDP(BaseMDP):
 
                 if det == 1: continue
                 locs_unc = np.array(
-                    [list(map(lambda x: act(locs[j], x, dims, det), filter(lambda x: x != alist[j], actions.keys())))
+                    [list(map(lambda x: self.act(locs[j], x, dims, det), filter(lambda x: x != alist[j], self.actions.keys())))
                      for j in range(n_agents)]).T
-                assert locs_unc.shape == ((len(actions) - 1), n_agents)
+                assert locs_unc.shape == ((len(self.actions) - 1), n_agents)
 
                 for lu in locs_unc:
                     if np.all(lu == lu[0]): continue  # collision
