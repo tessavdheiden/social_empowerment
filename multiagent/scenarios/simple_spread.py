@@ -129,7 +129,7 @@ class MDP(BaseMDP):
         """
         rnd = np.random.rand()
         if rnd > prob:
-            a = np.random.choice(list(filter(lambda x: x != a, actions.keys())))
+            a = np.random.choice(list(filter(lambda x: x != a, self.actions.keys())))
         state = _index_to_cell(s, dims)
 
         new_state = state + self.actions[a]
@@ -142,7 +142,7 @@ class MDP(BaseMDP):
 
 
     def compute_transition(self, n_agents, dims, locations, det=1.):
-
+        """ Computes probabilistic model T[s',a,s] corresponding to a grid world with N agents. """
         a_list = list(itertools.product(self.actions.keys(), repeat=n_agents))
         n_actions = len(a_list)
 
