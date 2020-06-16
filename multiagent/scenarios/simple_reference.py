@@ -54,7 +54,9 @@ class Scenario(BaseScenario):
 
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
-        return self.reward(agent, world), np.argmax(agent.state.c), None, None
+        dist_goal = np.sqrt(np.sum(np.square(agent.goal_a.state.p_pos - agent.goal_b.state.p_pos)))
+        occupied_landmarks = 1 if dist_goal < .1 else 0
+        return (self.reward(agent, world), np.argmax(agent.state.c), dist_goal, occupied_landmarks)
 
     def reward(self, agent, world):
         if agent.goal_a is None or agent.goal_b is None:

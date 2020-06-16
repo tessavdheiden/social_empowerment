@@ -21,6 +21,12 @@ def print_table(config):
         print(f'collisions = {collisions:.3f} maximal one per episode and averaged over {len(all_infos)} episodes')
         print(f'episodes in collision = {np.argwhere(np.any(all_infos[:, :, 1] > 1, axis=1)).reshape(-1)}')
         print(f'min_dist = {avg_dist:.3f} minimal distance at end of episode and averaged over {len(all_infos)} episodes')
+    elif config.env_id == 'simple_reference':
+        avg_dist = all_infos[:, :, :, 2].mean()
+        target_reach = all_infos[:, :, :, 3].max(1).mean()
+
+        print(f'target_reach = {target_reach:.3f} maximized over time steps averaged over {len(all_infos)} episodes and agents')
+        print(f'avg_dist = {avg_dist:.3f} avg distance over {len(all_infos)} episodes, {len(all_infos[-1])} time steps and {len(all_infos[-1, -1])} agents ')
 
 
 if __name__ == '__main__':
