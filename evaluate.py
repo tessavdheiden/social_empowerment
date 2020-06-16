@@ -27,7 +27,7 @@ def run(config):
     env = make_env(config.env_id, benchmark=True, discrete_action=maddpg.discrete_action)
     maddpg.prep_rollouts(device='cpu')
     ifi = 1 / config.fps  # inter-frame interval
-    all_infos = np.zeros((config.n_episodes, config.episode_length, 4))
+    all_infos = np.zeros((config.n_episodes, config.episode_length, maddpg.nagents, 4))
     all_positions = np.zeros((config.n_episodes, config.episode_length, maddpg.nagents, 2))
     for ep_i in range(config.n_episodes):
         print("Episode %i of %i" % (ep_i + 1, config.n_episodes))
@@ -43,7 +43,7 @@ def run(config):
                                   requires_grad=False)
                          for i in range(maddpg.nagents)]
 
-            all_positions[ep_i, t_i] = np.asarray([a.state.p_pos for a in env.world.agents])
+            all_positions[ep_i, t_i] = env.get_positions()
             # get actions as torch Variables
             torch_actions = maddpg.step(torch_obs, explore=False)
             # convert actions to numpy arrays
@@ -57,7 +57,7 @@ def run(config):
             if elapsed < ifi:
                 time.sleep(ifi - elapsed)
             env.render('human')
-            all_infos[ep_i][t_i] = np.array(infos['n'][0])
+            all_infos[ep_i][t_i] = np.array(infos['n'])
 
         if config.save_gifs:
             gif_num = 0
@@ -91,7 +91,7 @@ if __name__ == '__main__':
     parser.add_argument("--incremental", default=None, type=int,
                         help="Load incremental policy from given episode " +
                              "rather than final policy")
-    parser.add_argument("--n_episodes", default=50, type=int)
+    parser.add_argument("--n_episodes", default=10, type=int)
     parser.add_argument("--episode_length", default=25, type=int)
     parser.add_argument("--fps", default=30, type=int)
 
