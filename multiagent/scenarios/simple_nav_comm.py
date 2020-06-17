@@ -6,7 +6,7 @@ class Scenario(BaseScenario):
     def make_world(self):
         world = World()
         # set any world properties first
-        world.dim_c = 10
+        world.dim_c = 5
         world.collaborative = True  # whether agents share rewards
         # add agents
         world.agents = [Agent() for i in range(2)]
