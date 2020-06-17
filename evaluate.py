@@ -27,7 +27,7 @@ def run(config):
     env = make_env(config.env_id, benchmark=True, discrete_action=maddpg.discrete_action)
     maddpg.prep_rollouts(device='cpu')
     ifi = 1 / config.fps  # inter-frame interval
-    all_infos = np.zeros((config.n_episodes, config.episode_length, maddpg.nagents, 4))
+    all_infos = np.empty((config.n_episodes, config.episode_length, maddpg.nagents, 10))
     all_positions = np.zeros((config.n_episodes, config.episode_length, maddpg.nagents, 2))
     for ep_i in range(config.n_episodes):
         print("Episode %i of %i" % (ep_i + 1, config.n_episodes))
@@ -57,7 +57,7 @@ def run(config):
             if elapsed < ifi:
                 time.sleep(ifi - elapsed)
             env.render('human')
-            all_infos[ep_i][t_i] = np.array(infos['n'])
+            all_infos[ep_i, t_i, :, :len(infos['n'][-1])] = np.array(infos['n'])
 
         if config.save_gifs:
             gif_num = 0
