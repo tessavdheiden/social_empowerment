@@ -63,8 +63,8 @@ def run(config):
                                   hidden_dim=config.hidden_dim)
     replay_buffer = ReplayBuffer(config.buffer_length, maddpg.nagents,
                                  [obsp.shape[0] for obsp in env.observation_space],
-                                 [acsp.shape[0] if isinstance(acsp, Box) else acsp.n
-                                  for acsp in env.action_space])
+                                 [acsp.shape[0] if isinstance(acsp, Box) else acsp.n if isinstance(acsp, Discrete) else
+                                 sum(acsp.high) + acsp.num_discrete_space for acsp in env.action_space])
     t = 0
     dims = (3, 3)
     mdp = MDP(n_agents=maddpg.nagents, dims=dims, n_step=1)
