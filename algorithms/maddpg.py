@@ -1,4 +1,5 @@
 import torch
+from functools import reduce
 import torch.nn.functional as F
 from gym.spaces import Box, Discrete, MultiDiscrete
 from utils.networks import MLPNetwork
@@ -249,7 +250,7 @@ class MADDPG(object):
                 get_shape = lambda x: x.n
             else:
                 discrete_action = True
-                get_shape = lambda x: sum(x.high) + x.num_discrete_space
+                get_shape = lambda x: reduce(lambda a, b: a * b, x.high + 1)
             num_out_pol = get_shape(acsp)
             if algtype == "MADDPG":
                 num_in_critic = 0
