@@ -103,12 +103,18 @@ class MDP(BaseMDP):
 
         land_s = list(itertools.permutations(np.arange(dims[0] * dims[1]), 3))
         a_s = np.arange(dims[0] * dims[1])
-
-        values = [([s1, s2, s3], [_dist_locs(s, s1, dims), _dist_locs(s, s2, dims), _dist_locs(s, s3, dims)], s) for (s1, s2, s3) in land_s for s in a_s]
-
+        f = lambda x: np.around(x, decimals=1)
+        values = [([s1, s2, s3], [_dist_locs(s, s1, dims, f), _dist_locs(s, s2, dims, f), _dist_locs(s, s3, dims, f)], s) for (s1, s2, s3) in land_s for s in a_s]
         self.configurations = dict(list(enumerate(values))) # TODO: some land_dist are similar
 
         self.actions = {
+            "N": np.array([1, 0]),      # UP
+            "S": np.array([-1, 0]),     # DOWN
+            "E": np.array([0, 1]),      # RIGHT
+            "W": np.array([0, -1]),     # LEFT
+            "_": np.array([0, 0])       # STAY
+        }
+        self.messages = {
             "N": np.array([1, 0]),      # UP
             "S": np.array([-1, 0]),     # DOWN
             "E": np.array([0, 1]),      # RIGHT
@@ -149,9 +155,10 @@ class MDP(BaseMDP):
         return -1
 
     def _find_p_in_dict(self, s, s1, s2, s3, dims):
-        d1 = _dist_locs(s, s1, dims)
-        d2 = _dist_locs(s, s2, dims)
-        d3 = _dist_locs(s, s3, dims)
+        f = lambda x: np.around(x, decimals=1)
+        d1 = _dist_locs(s, s1, dims, f)
+        d2 = _dist_locs(s, s2, dims, f)
+        d3 = _dist_locs(s, s3, dims, f)
         klist = []
         for k, v in self.configurations.items():
             (land_s, land_p, ss) = v
@@ -160,38 +167,86 @@ class MDP(BaseMDP):
                 klist.append(k)
         return klist
 
+    def _message_to_action(self, land_s, s, m, dims):
+        l_s = land_s[0] if m == "R" else land_s[1] if m == "G" else land_s[2]
+        land_p = _index_to_cell(l_s, dims)
+        p = _index_to_cell(s, dims)
+        alist = []
+        if p[1] < land_p[1]:
+            alist.append("N")
+        elif p[1] > land_p[1]:
+            alist.append("S")
+        if p[0] < land_p[0]:
+            alist.append("E")
+        elif p[0] > land_p[0]:
+            alist.append("W")
+        return ["_"] if len(alist) == 0 else alist
+
     def compute_transition(self, dims, locations, act, det=1.):
-        T = np.zeros([len(locations), len(self.actions), len(locations)])
+        T = np.zeros([len(locations), len(self.actions), len(locations)], dtype='uint8')
 
         for k, v in locations.items():
             (land_s, land_p, s) = v
             (s1, s2, s3) = land_s
-            for i, a in enumerate(self.actions.keys()):
-                s_new = act(s, a, dims)
-                #k_new = self._find_s_in_dict(s_new, s1, s2, s3) # TODO: find by s or by p? s is faster and unique, p corresponds to env
-                klist = self._find_p_in_dict(s_new, s1, s2, s3, dims)
-                for k_new in klist:
-                    T[k_new, i, k] += det / len(klist)
+            for i, m in enumerate(self.messages.keys()):
+                #k_new_lst = [self._find_s_in_dict(act(s, a, dims), s1, s2, s3) for a in self._message_to_action(land_s, s, m, dims)]
+                #k_new_lst = [self._find_s_in_dict(act(s, m, dims), s1, s2, s3)] # TODO: find by s or by p? s is faster and unique, p corresponds to env
+                k_new_lst = self._find_p_in_dict(act(s, m, dims), s1, s2, s3, dims)
+                for k_new in k_new_lst:
+                    T[k_new, i, k] += det / len(k_new_lst)
 
         return T
 
     def compute_transition_nstep(self, T, n_step):
         n_states, n_actions, _ = T.shape
         nstep_actions = np.array(list(itertools.product(range(n_actions), repeat=n_step)))
-        Bn = np.zeros([n_states, len(nstep_actions), n_states])
+        Bn = np.zeros([n_states, len(nstep_actions), n_states], dtype='uint8')
         for i, an in enumerate(nstep_actions):
             Bn[:, i, :] = reduce((lambda x, y: np.dot(y, x)), map((lambda a: T[:, a, :]), an))
         return Bn
 
 
+def plot_config(l_s, a, row, col, ax):
+    for s in l_s:
+        cell = _index_to_cell(s, dims)
+        ax[row, col].add_patch(Circle((cell[1] + .5, cell[0] + .5), .25))
+    cell = _index_to_cell(a, dims)
+    ax[row, col].add_patch(Circle((cell[1] + .5, cell[0] + .5), .5, color='r', alpha=.5))
+    ax[row, col].set_ylim(0, dims[0])
+    ax[row, col].set_xlim(0, dims[1])
+
 
 if __name__ == '__main__':
-    mdp = MDP(dims=(3, 3), n_step=1)
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Circle
+
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(6, 6))
+
+    dims = (3, 3)
+    mdp = MDP(dims=dims, n_step=1)
     E = np.zeros(len(mdp.configurations))
 
     for k, v in mdp.configurations.items():
+        print(f'progress = {k} our of {len(mdp.configurations)}')
         E[k] = empowerment(T=mdp.Tn, det=.9, n_step=1, state=k)
     idx = np.argsort(E)
-    print(f'min E = {E[idx[0]]} max E = {E[idx[-1]]}')
-    print(f'min c = {mdp.configurations[idx[0]]} max c = {mdp.configurations[idx[-1]]}')
-    print(f'equal idx min = {[mdp.configurations[key] for key in np.where(E==E[idx[-1]])[0].tolist()]}')
+    low_idx = np.where(E == E[idx[0]])[0]
+    high_idx = np.where(E == E[idx[-1]])[0]
+
+    low_e_config = mdp.configurations[np.random.choice(low_idx)]
+    (l_s, _, a) = low_e_config
+    plot_config(l_s, a, row=0, col=0, ax=ax)
+
+    low_e_config = mdp.configurations[np.random.choice(low_idx)]
+    (l_s, _, a) = low_e_config
+    plot_config(l_s, a, row=0, col=1, ax=ax)
+
+    high_e_config = mdp.configurations[np.random.choice(high_idx)]
+    (l_s, _, a) = high_e_config
+    plot_config(l_s, a, row=1, col=0, ax=ax)
+
+    high_e_config = mdp.configurations[np.random.choice(high_idx)]
+    (l_s, _, a) = high_e_config
+    plot_config(l_s, a, row=1, col=1, ax=ax)
+
+    plt.savefig('tmp.png')
