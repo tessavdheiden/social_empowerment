@@ -89,4 +89,109 @@ class Scenario(BaseScenario):
         # listener
         if agent.silent:
             return np.concatenate([agent.state.p_vel] + entity_pos + comm)
-            
+
+
+from multiagent.scenarios.mdp import BaseMDP
+from multiagent.scenarios.transition_utils import _dist_locs, _index_to_cell, _cell_to_index, vecmod
+from estimate_empowerment import empowerment
+import itertools
+from functools import reduce
+
+
+class MDP(BaseMDP):
+    def __init__(self, dims, n_step, act=None):
+
+        land_s = list(itertools.permutations(np.arange(dims[0] * dims[1]), 3))
+        a_s = np.arange(dims[0] * dims[1])
+
+        values = [([s1, s2, s3], [_dist_locs(s, s1, dims), _dist_locs(s, s2, dims), _dist_locs(s, s3, dims)], s) for (s1, s2, s3) in land_s for s in a_s]
+
+        self.configurations = dict(list(enumerate(values))) # TODO: some land_dist are similar
+
+        self.actions = {
+            "N": np.array([1, 0]),      # UP
+            "S": np.array([-1, 0]),     # DOWN
+            "E": np.array([0, 1]),      # RIGHT
+            "W": np.array([0, -1]),     # LEFT
+            "_": np.array([0, 0])       # STAY
+        }
+        if act is None:
+            self.T = self.compute_transition(dims, self.configurations, self.act)
+        else:
+            self.T = self.compute_transition(dims, self.configurations, act)
+        self.Tn = self.compute_transition_nstep(T=self.T, n_step=n_step)
+
+    def act(self, s, a, dims, prob=1., toroidal=False):
+        """ get updated state after action
+        s  : state, index of grid position
+        a : action
+        prob : probability of performing action
+        """
+        rnd = np.random.rand()
+        if rnd > prob:
+            a = np.random.choice(list(filter(lambda x: x != a, self.actions.keys())))
+        state = _index_to_cell(s, dims)
+
+        new_state = state + self.actions[a]
+        # can't move off grid
+        if toroidal:
+            new_state = vecmod(new_state, dims)
+        elif np.any(new_state < np.zeros(2)) or np.any(new_state >= dims):
+            return _cell_to_index(state, dims)
+        return _cell_to_index(new_state, dims)
+
+    def _find_s_in_dict(self, s, s1, s2, s3):
+        for k, v in self.configurations.items():
+            (land_s, land_p, ss) = v
+            (ss1, ss2, ss3) = land_s
+            if s == ss and s1 == ss1 and s2 == ss2 and s3 == ss3:
+                return k
+        return -1
+
+    def _find_p_in_dict(self, s, s1, s2, s3, dims):
+        d1 = _dist_locs(s, s1, dims)
+        d2 = _dist_locs(s, s2, dims)
+        d3 = _dist_locs(s, s3, dims)
+        klist = []
+        for k, v in self.configurations.items():
+            (land_s, land_p, ss) = v
+            (dd1, dd2, dd3) = land_p
+            if d1 == dd1 and d2 == dd2 and d3 == dd3:
+                klist.append(k)
+        return klist
+
+    def compute_transition(self, dims, locations, act, det=1.):
+        T = np.zeros([len(locations), len(self.actions), len(locations)])
+
+        for k, v in locations.items():
+            (land_s, land_p, s) = v
+            (s1, s2, s3) = land_s
+            for i, a in enumerate(self.actions.keys()):
+                s_new = act(s, a, dims)
+                #k_new = self._find_s_in_dict(s_new, s1, s2, s3) # TODO: find by s or by p? s is faster and unique, p corresponds to env
+                klist = self._find_p_in_dict(s_new, s1, s2, s3, dims)
+                for k_new in klist:
+                    T[k_new, i, k] += det / len(klist)
+
+        return T
+
+    def compute_transition_nstep(self, T, n_step):
+        n_states, n_actions, _ = T.shape
+        nstep_actions = np.array(list(itertools.product(range(n_actions), repeat=n_step)))
+        Bn = np.zeros([n_states, len(nstep_actions), n_states])
+        for i, an in enumerate(nstep_actions):
+            Bn[:, i, :] = reduce((lambda x, y: np.dot(y, x)), map((lambda a: T[:, a, :]), an))
+        return Bn
+
+
+
+if __name__ == '__main__':
+    mdp = MDP(dims=(3, 3), n_step=1)
+    E = np.zeros(len(mdp.configurations))
+
+    for k, v in mdp.configurations.items():
+        E[k] = empowerment(T=mdp.Tn, det=.9, n_step=1, state=k)
+    idx = np.argsort(E)
+    print(f'min E = {E[idx[0]]} max E = {E[idx[-1]]}')
+    print(f'min c = {mdp.configurations[idx[0]]} max c = {mdp.configurations[idx[-1]]}')
+    print(f'equal idx min = {[mdp.configurations[key] for key in np.where(E==E[idx[-1]])[0].tolist()]}')

@@ -148,7 +148,7 @@ class MDP(BaseMDP):
 
         n_configs = len(locations)
         # compute environment dynamics as a matrix T
-        T = np.zeros([n_configs, n_actions, n_configs], dtype='uint8')
+        T = np.zeros([n_configs, n_actions, n_configs])
         # T[s',a,s] is the probability of landing in s' given action a is taken in state s.
         for c, locs in enumerate(locations):
             for i, alist in enumerate(a_list):

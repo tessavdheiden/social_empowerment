@@ -15,6 +15,14 @@ def _location_to_index(locations, locs):
     return np.where(np.all(locations == locs, axis=1))[0][0]
 
 
+def _dist_locs(p1, p2, dims):
+    def _dir_to_dist(p_pos1, p_pos2):
+        delta_pos = p_pos2 - p_pos1
+        return np.sqrt(np.sum(np.square(delta_pos)))
+
+    return _dir_to_dist(_index_to_cell(p1, dims), _index_to_cell(p2, dims))
+
+
 vecmod = np.vectorize(lambda x, y : x % y)
 
 
