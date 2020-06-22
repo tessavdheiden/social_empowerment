@@ -12,8 +12,9 @@ from utils.make_env import make_env
 from utils.buffer import ReplayBuffer
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 from algorithms.maddpg import MADDPG
-from estimate_empowerment import estimate_empowerment_from_positions
-from multiagent.scenarios.simple_spread import MDP
+from estimate_empowerment import estimate_empowerment_from_positions, estimate_empowerment_from_landmark_positions
+from multiagent.scenarios.simple_spread import MDP as spreadMDP
+from multiagent.scenarios.simple_speaker_listener import MDP as slMDP
 
 USE_CUDA = False  # torch.cuda.is_available()
 
@@ -66,8 +67,9 @@ def run(config):
                                  [acsp.shape[0] if isinstance(acsp, Box) else acsp.n if isinstance(acsp, Discrete) else
                                  sum(acsp.high - acsp.low + 1) for acsp in env.action_space])
     t = 0
-    dims = (3, 3)
-    mdp = MDP(n_agents=maddpg.nagents, dims=dims, n_step=1)
+
+    #mdp = MDP(n_agents=maddpg.nagents, dims=(3, 3), n_step=1)
+    mdp = slMDP(n_step=1, agent=maddpg)
     for ep_i in range(0, config.n_episodes, config.n_rollout_threads):
         print("Episodes %i-%i of %i" % (ep_i + 1,
                                         ep_i + 1 + config.n_rollout_threads,
@@ -93,7 +95,16 @@ def run(config):
             actions = [[ac[i] for ac in agent_actions] for i in range(config.n_rollout_threads)]
             next_obs, rewards, dones, infos = env.step(actions)
 
-            emps = np.ones_like(rewards) * estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=mdp.Tn, locations=mdp.configurations) if config.with_empowerment else rewards
+            ps = np.squeeze(mdp.config_from_pos(env.get_positions(), env.get_landmark_positions()))
+            comm = np.squeeze(env.get_communications())
+            mdp.update_transition(ps, comm, maddpg)
+            emps = np.ones_like(rewards) * estimate_empowerment_from_landmark_positions(ps,
+                                                                               Tn=mdp.Tn,
+                                                                               locations=mdp.sspa) if config.with_empowerment else rewards
+            #emps = np.ones_like(rewards) * estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=mdp.Tn, locations=mdp.configurations) if config.with_empowerment else rewards
+
+
+
 
             replay_buffer.push(obs, agent_actions, rewards, emps, next_obs, dones)
             obs = next_obs

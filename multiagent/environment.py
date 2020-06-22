@@ -263,7 +263,13 @@ class MultiAgentEnv(gym.Env):
         return results
 
     def get_positions(self):
-        return [agent.state.p_pos for agent in self.world.agents]
+        return [agent.state.p_pos for agent in self.world.agents if agent.movable]
+
+    def get_landmark_positions(self):
+        return [landmark.state.p_pos for landmark in self.world.landmarks]
+
+    def get_communications(self):
+        return [agent.state.c for agent in self.world.agents if not agent.silent]
 
     # create receptor field locations in local coordinate frame
     def _make_receptor_locations(self, agent):

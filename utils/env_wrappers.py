@@ -22,6 +22,12 @@ def worker(remote, parent_remote, env_fn_wrapper):
         elif cmd == 'get_positions':
             positions = env.get_positions()
             remote.send(positions)
+        elif cmd == 'get_landmark_positions':
+            positions = env.get_landmark_positions()
+            remote.send(positions)
+        elif cmd == 'get_communications':
+            positions = env.get_communications()
+            remote.send(positions)
         elif cmd == 'reset_task':
             ob = env.reset_task()
             remote.send(ob)
@@ -101,6 +107,16 @@ class SubprocVecEnv(VecEnv):
             remote.send(('get_positions', None))
         return np.stack([remote.recv() for remote in self.remotes])
 
+    def get_landmark_positions(self):
+        for remote in self.remotes:
+            remote.send(('get_landmark_positions', None))
+        return np.stack([remote.recv() for remote in self.remotes])
+
+    def get_communications(self):
+        for remote in self.remotes:
+            remote.send(('get_communications', None))
+        return np.stack([remote.recv() for remote in self.remotes])
+
 
 class DummyVecEnv(VecEnv):
     def __init__(self, env_fns):
@@ -138,3 +154,9 @@ class DummyVecEnv(VecEnv):
 
     def get_positions(self):
         return np.array([env.get_positions() for env in self.envs])
+
+    def get_landmark_positions(self):
+        return np.array([env.get_landmark_positions() for env in self.envs])
+
+    def get_communications(self):
+        return np.array([env.get_communications() for env in self.envs])

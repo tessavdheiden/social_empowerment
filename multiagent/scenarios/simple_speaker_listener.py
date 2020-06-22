@@ -96,106 +96,59 @@ from multiagent.scenarios.transition_utils import _dist_locs, _index_to_cell, _c
 from estimate_empowerment import empowerment
 import itertools
 from functools import reduce
-
+from utils.agents import onehot_from_logits
+import torch
+from torch.autograd import Variable
+cast = lambda x: Variable(torch.Tensor(x).view(1, -1), requires_grad=False)
+roff = lambda x: np.around(x, decimals=0)
 
 class MDP(BaseMDP):
-    def __init__(self, dims, n_step, act=None):
+    def __init__(self, n_step, agent):
+        self.agent = agent
+        self.agent.prep_rollouts(device='cpu')
 
-        land_s = list(itertools.permutations(np.arange(dims[0] * dims[1]), 3))
-        a_s = np.arange(dims[0] * dims[1])
-        f = lambda x: np.around(x, decimals=1)
-        values = [([s1, s2, s3], [_dist_locs(s, s1, dims, f), _dist_locs(s, s2, dims, f), _dist_locs(s, s3, dims, f)], s) for (s1, s2, s3) in land_s for s in a_s]
-        self.configurations = dict(list(enumerate(values))) # TODO: some land_dist are similar
+        self.sspa = gen_state_space()
+        self.aspa = gen_action_space()
 
-        self.actions = {
-            "N": np.array([1, 0]),      # UP
-            "S": np.array([-1, 0]),     # DOWN
-            "E": np.array([0, 1]),      # RIGHT
-            "W": np.array([0, -1]),     # LEFT
-            "_": np.array([0, 0])       # STAY
-        }
-        self.messages = {
-            "N": np.array([1, 0]),      # UP
-            "S": np.array([-1, 0]),     # DOWN
-            "E": np.array([0, 1]),      # RIGHT
-            "W": np.array([0, -1]),     # LEFT
-            "_": np.array([0, 0])       # STAY
-        }
-        if act is None:
-            self.T = self.compute_transition(dims, self.configurations, self.act)
-        else:
-            self.T = self.compute_transition(dims, self.configurations, act)
+        # transition function
+        self.T = self.compute_transition(self.sspa, self.aspa, self.agent)
         self.Tn = self.compute_transition_nstep(T=self.T, n_step=n_step)
+        # experience
+        self.D = self.T.copy()
 
-    def act(self, s, a, dims, prob=1., toroidal=False):
-        """ get updated state after action
-        s  : state, index of grid position
-        a : action
-        prob : probability of performing action
-        """
-        rnd = np.random.rand()
-        if rnd > prob:
-            a = np.random.choice(list(filter(lambda x: x != a, self.actions.keys())))
-        state = _index_to_cell(s, dims)
+    def act(self, s, a, agent, cast):
+        dr, dg, db = s
+        obs = cast(np.concatenate((np.array([0, 0]), dr, dg, db, a), axis=0))
+        return agent.agents[1].policy(obs)
 
-        new_state = state + self.actions[a]
-        # can't move off grid
-        if toroidal:
-            new_state = vecmod(new_state, dims)
-        elif np.any(new_state < np.zeros(2)) or np.any(new_state >= dims):
-            return _cell_to_index(state, dims)
-        return _cell_to_index(new_state, dims)
+    def compute_transition(self, sspa, aspa, agent):
 
-    def _find_s_in_dict(self, s, s1, s2, s3):
-        for k, v in self.configurations.items():
-            (land_s, land_p, ss) = v
-            (ss1, ss2, ss3) = land_s
-            if s == ss and s1 == ss1 and s2 == ss2 and s3 == ss3:
-                return k
-        return -1
+        T = np.zeros((len(sspa), len(sspa), len(sspa)))
+        for s, config in enumerate(sspa):
+            for i, comm in enumerate(aspa):
+                a = self.act(config, comm, agent, cast)
+                a = onehot_from_logits(a)
+                move = move_from_onehot(a)
 
-    def _find_p_in_dict(self, s, s1, s2, s3, dims):
-        f = lambda x: np.around(x, decimals=1)
-        d1 = _dist_locs(s, s1, dims, f)
-        d2 = _dist_locs(s, s2, dims, f)
-        d3 = _dist_locs(s, s3, dims, f)
-        klist = []
-        for k, v in self.configurations.items():
-            (land_s, land_p, ss) = v
-            (dd1, dd2, dd3) = land_p
-            if d1 == dd1 and d2 == dd2 and d3 == dd3:
-                klist.append(k)
-        return klist
+                config_ = propagate_state(config, move)
+                s_ = find_state(config_, sspa)
 
-    def _message_to_action(self, land_s, s, m, dims):
-        l_s = land_s[0] if m == "R" else land_s[1] if m == "G" else land_s[2]
-        land_p = _index_to_cell(l_s, dims)
-        p = _index_to_cell(s, dims)
-        alist = []
-        if p[1] < land_p[1]:
-            alist.append("N")
-        elif p[1] > land_p[1]:
-            alist.append("S")
-        if p[0] < land_p[0]:
-            alist.append("E")
-        elif p[0] > land_p[0]:
-            alist.append("W")
-        return ["_"] if len(alist) == 0 else alist
-
-    def compute_transition(self, dims, locations, act, det=1.):
-        T = np.zeros([len(locations), len(self.actions), len(locations)], dtype='uint8')
-
-        for k, v in locations.items():
-            (land_s, land_p, s) = v
-            (s1, s2, s3) = land_s
-            for i, m in enumerate(self.messages.keys()):
-                #k_new_lst = [self._find_s_in_dict(act(s, a, dims), s1, s2, s3) for a in self._message_to_action(land_s, s, m, dims)]
-                #k_new_lst = [self._find_s_in_dict(act(s, m, dims), s1, s2, s3)] # TODO: find by s or by p? s is faster and unique, p corresponds to env
-                k_new_lst = self._find_p_in_dict(act(s, m, dims), s1, s2, s3, dims)
-                for k_new in k_new_lst:
-                    T[k_new, i, k] += det / len(k_new_lst)
+                T[s_, i, s] += 1
 
         return T
+
+    def update_transition(self, config, comm, agent):
+        s = find_state(config, self.sspa)
+        logits = self.act(config, comm, agent, cast)
+        action = onehot_from_logits(logits)
+        move = move_from_onehot(action)
+
+        config_ = propagate_state(config, move)
+        s_ = find_state(config_, self.sspa)
+        a = np.where(np.all(self.aspa == comm, 1))[0]
+        self.D[s_, a, s] += 1
+        self.T[:, move, s] = normalize(self.D[:, a, s])
+
 
     def compute_transition_nstep(self, T, n_step):
         n_states, n_actions, _ = T.shape
@@ -204,6 +157,9 @@ class MDP(BaseMDP):
         for i, an in enumerate(nstep_actions):
             Bn[:, i, :] = reduce((lambda x, y: np.dot(y, x)), map((lambda a: T[:, a, :]), an))
         return Bn
+
+    def config_from_pos(self, p_land, p_agent):
+        return roff(p_land - p_agent)
 
 
 def plot_config(l_s, a, row, col, ax):
@@ -216,37 +172,174 @@ def plot_config(l_s, a, row, col, ax):
     ax[row, col].set_xlim(0, dims[1])
 
 
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
+def rand_sample(p_x):
+    """
+    Randomly sample a value from a probability distribution p_x
+    """
+    cumsum = np.cumsum(p_x)
+    rnd = np.random.rand()
+    return np.argmax(cumsum > rnd)
+
+def normalize(X):
+    """
+    Normalize vector or matrix columns X
+    """
+    return X / X.sum(axis=0)
+
+def softmax(x, tau):
+    """
+    Returns the softmax normalization of a vector x using temperature tau.
+    """
+    return normalize(np.exp(x / tau))
+
+def load_agent():
+    from algorithms.maddpg import MADDPG
+    maddpg = MADDPG.init_from_save('models/simple_speaker_listener/my_model/run1/model.pt')
+    maddpg.prep_rollouts(device='cpu')
+    return maddpg
+
+def gen_state_space():
+    locations = [[0, 1],     # UP
+                [0, -1],     # DOWN
+                [1, 0],      # RIGHT
+                [-1, 0],     # LEFT
+                [0, 0],      # CENTER
+                [1, 1],      # RIGHT UP
+                [1, -1],     # RIGHT DOWN
+                [-1, 1],     # LEFT UP
+                [-1, -1],    # LEFT DOWN
+                [2, 2]]
+    a = np.array(list(itertools.permutations(locations, 3)))
+    b = np.array([[i, j,[2, 2]] for i in locations for j in locations]) # ALL, 1 or 2 OUT
+    result = np.concatenate((a, b.reshape(100, 3, 2)), axis=0)
+    return result
+
+def gen_action_space():
+    return [np.array([0, 0, 0]),
+            np.array([1, 0, 0]),
+            np.array([0, 1, 0]),
+            np.array([0, 0, 1])]
+
+def move_from_onehot(action):
+    moves = {
+        "N": np.array([0, 1]),      # UP
+        "S": np.array([0, -1]),     # DOWN
+        "E": np.array([1, 0]),      # RIGHT
+        "W": np.array([-1, 0]),     # LEFT
+        "_": np.array([0, 0])       # STAY
+    }
+
+    action = np.argmax(action)
+    if action == 1: return moves["N"]
+    if action == 2: return moves["S"]
+    if action == 3: return moves["E"]
+    if action == 4: return moves["W"]
+    if action == 0: return moves["_"]
+
+def propagate_state(s, move):
+    new_state = s - move
+    for i, s_ in enumerate(new_state):
+        if any(s_ > 1) or any(s_<-1):
+            new_state[i] = np.array([2, 2])
+
+    return new_state
+
+def find_state(state, sspa):
+    a = state.flatten()
+    other = sspa.reshape(-1, 6)
+    for i, s in enumerate(other):
+        if all(s == a):
+            return i
+    return len(sspa) - 1
+
+def draw_config(l_s, row, col, ax):
+    ax[row, col].cla()
     from matplotlib.patches import Circle
+    colors = ['r', 'g', 'b']
+    for cell, c in zip(l_s, colors):
+        ax[row, col].add_patch(Circle((cell[0], cell[1]), .5, color=c))
 
-    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(6, 6))
+    ax[row, col].set_ylim(-1.5, 1.5)
+    ax[row, col].set_xlim(-1.5, 1.5)
 
-    dims = (3, 3)
-    mdp = MDP(dims=dims, n_step=1)
-    E = np.zeros(len(mdp.configurations))
 
-    for k, v in mdp.configurations.items():
-        print(f'progress = {k} our of {len(mdp.configurations)}')
-        E[k] = empowerment(T=mdp.Tn, det=.9, n_step=1, state=k)
+
+if __name__ == '__main__':
+
+
+
+    import matplotlib.pyplot as plt
+
+
+
+    fig, ax = plt.subplots(nrows=6, ncols=5, figsize=(12, 6))
+
+    agent = load_agent()
+    sspa = gen_state_space()
+    aspa = gen_action_space()
+
+    T = np.zeros((len(sspa), len(aspa), len(sspa)))
+    for s, config in enumerate(sspa):
+        for i, comm in enumerate(aspa):
+            a = act(config, comm, agent, cast)
+            a = onehot_from_logits(a)
+            move = move_from_onehot(a)
+
+            config_ = propagate_state(config, move)
+            s_ = find_state(config_, sspa)
+
+            T[s_, i, s] += 1
+
+    E = np.zeros(len(sspa))
+
+    for s, state in enumerate(sspa):
+        print(f'progress = {s} our of {len(sspa)}')
+        E[s] = empowerment(T=T, det=1, n_step=1, state=s)
     idx = np.argsort(E)
     low_idx = np.where(E == E[idx[0]])[0]
     high_idx = np.where(E == E[idx[-1]])[0]
 
-    low_e_config = mdp.configurations[np.random.choice(low_idx)]
-    (l_s, _, a) = low_e_config
-    plot_config(l_s, a, row=0, col=0, ax=ax)
+    count = 0
+    while count < 3:
+        idx = np.random.choice(low_idx)
+        low_e_config = sspa[idx]
+        draw_config(low_e_config, count, 0, ax)
+        ax[count, 0].set_xlabel(f'E={E[idx]}')
 
-    low_e_config = mdp.configurations[np.random.choice(low_idx)]
-    (l_s, _, a) = low_e_config
-    plot_config(l_s, a, row=0, col=1, ax=ax)
 
-    high_e_config = mdp.configurations[np.random.choice(high_idx)]
-    (l_s, _, a) = high_e_config
-    plot_config(l_s, a, row=1, col=0, ax=ax)
+        state = low_e_config
+        for i, action in enumerate(aspa):
+            new_action = act(state, action, agent, cast)
+            new_action = onehot_from_logits(new_action)
+            new_move = move_from_onehot(new_action)
 
-    high_e_config = mdp.configurations[np.random.choice(high_idx)]
-    (l_s, _, a) = high_e_config
-    plot_config(l_s, a, row=1, col=1, ax=ax)
+            new_state = propagate_state(state, new_move)
+            s_ = find_state(new_state, sspa)
 
-    plt.savefig('tmp.png')
+            draw_config(new_state, count, i+1, ax)
+            ax[count, i+1].set_xlabel(f'{action}, {s_}, {new_move}')
+        count += 1
+
+    while count < 6:
+        idx = np.random.choice(high_idx)
+        high_e_config = sspa[idx]
+        draw_config(high_e_config, count, 0, ax)
+        ax[count, 0].set_xlabel(f'E={E[idx]}')
+
+        state = high_e_config
+        for i, action in enumerate(aspa):
+            new_action = act(state, action, agent, cast)
+            new_action = onehot_from_logits(new_action)
+            new_move = move_from_onehot(new_action)
+
+            new_state = propagate_state(state, new_move)
+            draw_config(new_state, count, i+1, ax)
+            s_ = find_state(new_state, sspa)
+            ax[count, i+1].set_xlabel(f'{action}, {s_}, {new_move}')
+        count += 1
+
+
+    plt.show()
+
+
+    # plt.savefig('tmp.png')
