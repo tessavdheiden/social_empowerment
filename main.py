@@ -98,8 +98,9 @@ def run(config):
             ps = np.squeeze(mdp.config_from_pos(env.get_positions(), env.get_landmark_positions()))
             comm = np.squeeze(env.get_communications())
             mdp.update_transition(ps, comm, maddpg)
+            Tn = mdp.compute_transition_nstep(mdp.T, 1)
             emps = np.ones_like(rewards) * estimate_empowerment_from_landmark_positions(ps,
-                                                                               Tn=mdp.Tn,
+                                                                               Tn=Tn,
                                                                                locations=mdp.sspa) if config.with_empowerment else rewards
             #emps = np.ones_like(rewards) * estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=mdp.Tn, locations=mdp.configurations) if config.with_empowerment else rewards
 
