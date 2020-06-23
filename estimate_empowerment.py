@@ -17,16 +17,8 @@ def estimate_empowerment_from_positions(ps, Tn, locations, dims=(3, 3)):
             return empowerment(Tn, det=1., n_step=1, state=ss)
     return 0.
 
-def estimate_empowerment_from_landmark_positions(ps, Tn, locations):
-    def find_state(state, sspa):
-        a = state.flatten()
-        other = sspa.reshape(-1, 6)
-        for i, s in enumerate(other):
-            if all(s == a):
-                return i
-        return len(sspa) - 1
-    s = find_state(ps, locations)
-    return empowerment(Tn, det=1., n_step=1, state=s)
+def estimate_empowerment_from_landmark_positions(config, Tn, locations):
+    return empowerment(Tn, det=1., n_step=1, state=config)
 
 
 

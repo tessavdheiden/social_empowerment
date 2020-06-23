@@ -6,7 +6,7 @@ class Scenario(BaseScenario):
     def make_world(self):
         world = World()
         # set any world properties first
-        world.dim_c = 5
+        world.dim_c = 3
         world.collaborative = True  # whether agents share rewards
         # add agents
         world.agents = [Agent() for i in range(2)]
@@ -19,7 +19,7 @@ class Scenario(BaseScenario):
         # listener
         world.agents[1].silent = True
         # add landmarks
-        world.landmarks = [Landmark() for i in range(6)]
+        world.landmarks = [Landmark() for i in range(4)]
         for i, landmark in enumerate(world.landmarks):
             landmark.name = 'landmark %d' % i
             landmark.collide = False
@@ -44,8 +44,7 @@ class Scenario(BaseScenario):
         world.landmarks[1].color = np.array([0.25,0.75,0.25]) 
         world.landmarks[2].color = np.array([0.25,0.25,0.75])
         world.landmarks[3].color = np.array([0.25, 0.75, 0.75])
-        world.landmarks[4].color = np.array([0.75, 0.25, 0.75])
-        world.landmarks[5].color = np.array([0.75, 0.75, 0.25])
+        # world.landmarks[4].color = np.array([0.75, 0.25, 0.75])
         # special colors for goals
         world.agents[0].goal_a.color = world.agents[0].goal_b.color + np.array([0.45, 0.45, 0.45])
         # set random initial states
@@ -92,5 +91,8 @@ class Scenario(BaseScenario):
         # listener
         if agent.silent:
             return np.concatenate([agent.state.p_vel] + entity_pos + comm)
+
+
+
 
             

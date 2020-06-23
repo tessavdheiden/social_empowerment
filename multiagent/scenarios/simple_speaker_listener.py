@@ -159,7 +159,6 @@ class MDP(BaseMDP):
     def compute_transition(self, sspa, agent):
         """ Computes probabilistic model T[s',a,s] corresponding to a grid world with 2 agents 3 landmarks. """
         T = np.zeros((len(sspa), len(self.messages), len(sspa)), dtype='uint8')
-        print(T.shape)
         for s, config in enumerate(sspa):
             for i, comm in enumerate(self.messages):
                 logits = self.act(config, comm, agent, cast)
@@ -184,7 +183,7 @@ class MDP(BaseMDP):
         s_ = self.find_config(config_, self.sspa)
         a = np.where(np.all(self.messages == comm, 1))[0]
         self.D[s_, a, s] += 1
-        self.T[:, move, s] = normalize(self.D[:, a, s])
+        self.T[:, a, s] = normalize(self.D[:, a, s])
 
     def compute_transition_nstep(self, T, n_step):
         n_states, n_actions, _ = T.shape
