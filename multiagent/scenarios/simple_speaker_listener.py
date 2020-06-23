@@ -135,9 +135,7 @@ class MDP(BaseMDP):
 
     def propagate_state(self, s, move):
         new_state = s - move
-        for i, s_ in enumerate(new_state):
-            if any(s_ > 1) or any(s_ < -1):
-                new_state[i] = np.array([2, 2])
+        new_state[np.where(np.any(new_state > 1, 1) | np.any(new_state < -1, 1))[0], :] = np.array([2, 2])
         return new_state
 
     def find_config(self, c, sspa):
