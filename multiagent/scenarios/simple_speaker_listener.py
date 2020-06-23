@@ -102,11 +102,13 @@ cast = lambda x: Variable(torch.Tensor(x).view(1, -1), requires_grad=False)
 roff = lambda x: np.around(x, decimals=0)
 
 class MDP(BaseMDP):
-    def __init__(self, n_step, agent):
+    def __init__(self, n_step, agent, n_landmarks, n_channels):
         self.agent = agent
         self.agent.prep_rollouts(device='cpu')
+        self.n_lm = n_landmarks
+        self.n_ch = n_channels
 
-        self.sspa = self._make_sspa()
+        self.sspa = self._make_sspa(n_landmarks)
 
         # listener's actions
         self.moves = {
@@ -116,10 +118,10 @@ class MDP(BaseMDP):
             "E": np.array([1, 0]),      # RIGHT
             "W": np.array([-1, 0])      # LEFT
         }
-        self.messages = [[0, 0, 0],
-                         [1, 0, 0],
-                         [0, 1, 0],
-                         [0, 0, 1]]
+
+        self.messages = np.zeros((n_channels + 1, n_channels))
+        for i in range(1, n_channels + 1):
+            self.messages[i, i - 1] = 1
 
         # transition function
         self.T = self.compute_transition(self.sspa, self.agent)
@@ -127,11 +129,11 @@ class MDP(BaseMDP):
         # experience
         self.D = self.T.copy()
 
-    def _make_sspa(self):
+    def _make_sspa(self, n_landmarks):
         locations = list(itertools.product([-1, 0, 1], repeat=2))
-        for _ in range(3):
+        for _ in range(n_landmarks):
             locations.append((2, 2))
-        return np.array(list(itertools.permutations(locations, 3)))
+        return np.array(list(itertools.permutations(locations, n_landmarks)))
 
     def propagate_state(self, s, move):
         new_state = s - move
@@ -139,7 +141,7 @@ class MDP(BaseMDP):
         return new_state
 
     def find_config(self, c, sspa):
-        other = sspa.reshape(-1, 6)
+        other = sspa.reshape(-1, self.n_lm * 2)
         return np.argmax(np.all(other == c.flatten(), 1))
 
     def config_from_pos(self, p_land, p_agent):
@@ -151,13 +153,13 @@ class MDP(BaseMDP):
         a : message of speaker
         prob : probability of performing action
         """
-        dr, dg, db = s
-        obs = cast(np.concatenate((np.array([0, 0]), dr, dg, db, a), axis=0))
+        obs = cast(np.concatenate((np.array([0, 0]), *s, a), axis=0))
         return agent.agents[1].policy(obs)
 
     def compute_transition(self, sspa, agent):
         """ Computes probabilistic model T[s',a,s] corresponding to a grid world with 2 agents 3 landmarks. """
-        T = np.zeros((len(sspa), len(self.moves), len(sspa)))
+        T = np.zeros((len(sspa), len(self.messages), len(sspa)), dtype='uint8')
+        print(T.shape)
         for s, config in enumerate(sspa):
             for i, comm in enumerate(self.messages):
                 logits = self.act(config, comm, agent, cast)

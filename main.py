@@ -69,7 +69,7 @@ def run(config):
     t = 0
 
     #mdp = MDP(n_agents=maddpg.nagents, dims=(3, 3), n_step=1)
-    mdp = slMDP(n_step=1, agent=maddpg)
+    mdp = slMDP(n_step=1, agent=maddpg, n_landmarks=4, n_channels=5)
     for ep_i in range(0, config.n_episodes, config.n_rollout_threads):
         print("Episodes %i-%i of %i" % (ep_i + 1,
                                         ep_i + 1 + config.n_rollout_threads,
@@ -81,7 +81,6 @@ def run(config):
         explr_pct_remaining = max(0, config.n_exploration_eps - ep_i) / config.n_exploration_eps
         maddpg.scale_noise(config.final_noise_scale + (config.init_noise_scale - config.final_noise_scale) * explr_pct_remaining)
         maddpg.reset_noise()
-
         for et_i in range(config.episode_length):
             # rearrange observations to be per agent, and convert to torch Variable
             torch_obs = [Variable(torch.Tensor(np.vstack(obs[:, i])),
