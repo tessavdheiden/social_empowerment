@@ -125,7 +125,6 @@ class MDP(BaseMDP):
 
         # transition function
         self.T = self.compute_transition(self.sspa, self.agent)
-        self.Tn = self.compute_transition_nstep(T=self.T, n_step=n_step)
         # experience
         self.D = self.T.copy()
 
@@ -158,7 +157,11 @@ class MDP(BaseMDP):
 
     def compute_transition(self, sspa, agent):
         """ Computes probabilistic model T[s',a,s] corresponding to a grid world with 2 agents 3 landmarks. """
-        T = np.zeros((len(sspa), len(self.messages), len(sspa)), dtype='uint8')
+        T = np.zeros((len(sspa), len(self.messages), len(sspa)))
+
+        if self.n_lm > 4:
+            return T
+
         for s, config in enumerate(sspa):
             for i, comm in enumerate(self.messages):
                 logits = self.act(config, comm, agent, cast)
@@ -172,26 +175,20 @@ class MDP(BaseMDP):
         return T
 
     def update_transition(self, config, comm, agent):
-        """ Updates probabilistic model T[s',a,s] corresponding to a grid world with 2 agents 3 landmarks. """
+        """ Updates probabilistic model T[s',a,s] corresponding to a grid world with 2 agents n landmarks. """
         s = self.find_config(config, self.sspa)
-        logits = self.act(config, comm, agent, cast)
-        action = onehot_from_logits(logits)
+        for comm in self.messages:
+            logits = self.act(config, comm, agent, cast)
+            action = onehot_from_logits(logits)
 
-        move = list(self.moves.values())[np.argmax(action)]
+            move = list(self.moves.values())[np.argmax(action)]
 
-        config_ = self.propagate_state(config, move)
-        s_ = self.find_config(config_, self.sspa)
-        a = np.where(np.all(self.messages == comm, 1))[0]
-        self.D[s_, a, s] += 1
-        self.T[:, a, s] = normalize(self.D[:, a, s])
+            config_ = self.propagate_state(config, move)
+            s_ = self.find_config(config_, self.sspa)
+            a = np.where(np.all(self.messages == comm, 1))[0]
+            self.D[s_, a, s] += 1
+            self.T[:, a, s] = normalize(self.D[:, a, s])
 
-    def compute_transition_nstep(self, T, n_step):
-        n_states, n_actions, _ = T.shape
-        nstep_actions = np.array(list(itertools.product(range(n_actions), repeat=n_step)))
-        Bn = np.zeros([n_states, len(nstep_actions), n_states], dtype='uint8')
-        for i, an in enumerate(nstep_actions):
-            Bn[:, i, :] = reduce((lambda x, y: np.dot(y, x)), map((lambda a: T[:, a, :]), an))
-        return Bn
 
 
 def rand_sample(p_x):

@@ -45,6 +45,7 @@ class Scenario(BaseScenario):
         world.landmarks[2].color = np.array([0.25,0.25,0.75])
         world.landmarks[3].color = np.array([0.25, 0.75, 0.75])
         # world.landmarks[4].color = np.array([0.75, 0.25, 0.75])
+        # world.landmarks[5].color = np.array([0.75, 0.75, 0.25])
         # special colors for goals
         world.agents[0].goal_a.color = world.agents[0].goal_b.color + np.array([0.45, 0.45, 0.45])
         # set random initial states
@@ -58,9 +59,7 @@ class Scenario(BaseScenario):
 
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
-        dist_goal = np.sqrt(np.sum(np.square(agent.goal_a.state.p_pos - agent.goal_b.state.p_pos)))
-        occupied_landmarks = 1 if dist_goal < .1 else 0
-        return (self.reward(agent, world), np.argmax(agent.state.c), dist_goal, occupied_landmarks)
+        return (self.reward(agent, world), )
 
     def reward(self, agent, world):
         # squared distance from listener to landmark
