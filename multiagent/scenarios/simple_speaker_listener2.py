@@ -61,7 +61,11 @@ class Scenario(BaseScenario):
 
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
-        return (self.reward(agent, world),)
+        if agent.silent:
+            message = -1
+        else:
+            message = np.argmax(agent.state.c)
+        return (-self.reward(agent, world), message)
 
     def reward(self, agent, world):
         # squared distance from listener to landmark

@@ -20,7 +20,14 @@ def print_table(config):
 
         print(f'collisions = {collisions:.3f} maximal one per episode and averaged over {len(all_infos)} episodes')
         print(f'min_dist = {avg_dist:.3f} minimal distance at end of episode and averaged over {len(all_infos)} episodes')
-        #print(f'episodes in collision = {np.argwhere(np.any(all_infos[:, :, 1] > 1, axis=1)).reshape(-1)}')
+        print(f'episodes in collision = {np.argwhere(np.any(all_infos[:, :, 1] > 1, axis=1)).reshape(-1)}')
+
+    elif config.env_id == 'simple_speaker_listener2':
+        avg_dist = all_infos[:, -5:, 1, 0].mean()
+        distinct_token = np.array(list(map(len, np.unique(all_infos[:, -5:, 0, 1], axis=1)))).mean()
+
+        print(f'avg_dist = {avg_dist:.3f} avg distance over [{all_infos.shape[0]}, 5, {all_infos.shape[2]}]=[eps, last 5t-steps, agents]')
+        print(f'distinct token per episode = {distinct_token:.3f} avg over [{all_infos.shape[0]}, {all_infos.shape[1]}, 1]=[eps, last 5t-steps, agents]')
 
     elif config.env_id == 'simple_reference':
         avg_dist = all_infos[:, :, :, 2].mean()
