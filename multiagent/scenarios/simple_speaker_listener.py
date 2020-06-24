@@ -124,9 +124,9 @@ class MDP(BaseMDP):
             self.messages[i, i - 1] = 1
 
         # transition function
-        self.T = self.compute_transition(self.sspa, self.agent)
+        self.T = None
         # experience
-        self.D = self.T.copy()
+        self.D = None
 
     def _make_sspa(self, n_landmarks):
         locations = list(itertools.product([-1, 0, 1], repeat=2))
@@ -144,7 +144,9 @@ class MDP(BaseMDP):
         return np.argmax(np.all(other == c.flatten(), 1))
 
     def config_from_pos(self, p_land, p_agent):
-        return roff(p_land - p_agent)
+        config = roff(p_land - p_agent)
+        config[np.where(np.any(config > 1, 1) | np.any(config < -1, 1))[0], :] = np.array([2, 2])
+        return config
 
     def act(self, s, a, agent, cast):
         """ get updated state after action
@@ -157,10 +159,12 @@ class MDP(BaseMDP):
 
     def compute_transition(self, sspa, agent):
         """ Computes probabilistic model T[s',a,s] corresponding to a grid world with 2 agents 3 landmarks. """
-        T = np.zeros((len(sspa), len(self.messages), len(sspa)))
+        self.T = np.zeros((len(sspa), len(self.messages), len(sspa)))
+        # experience
+        self.D = self.T.copy()
 
         if self.n_lm > 4:
-            return T
+            return self.T
 
         for s, config in enumerate(sspa):
             for i, comm in enumerate(self.messages):
@@ -171,8 +175,8 @@ class MDP(BaseMDP):
                 config_ = self.propagate_state(config, move)
                 s_ = self.find_config(config_, sspa)
 
-                T[s_, i, s] += 1
-        return T
+                self.T[s_, i, s] += 1
+        return self.T
 
     def update_transition(self, config, comm, agent):
         """ Updates probabilistic model T[s',a,s] corresponding to a grid world with 2 agents n landmarks. """
@@ -189,6 +193,24 @@ class MDP(BaseMDP):
             self.D[s_, a, s] += 1
             self.T[:, a, s] = normalize(self.D[:, a, s])
 
+    def compute_transition_for_state(self, config, agent):
+        """ Updates reduced probabilistic model T[s',a] corresponding to a grid world with 2 agents n landmarks. """
+        # transition function
+        T = np.zeros((len(self.sspa), len(self.messages)))
+        # experience
+        D = T.copy()
+        for comm in self.messages:
+            logits = self.act(config, comm, agent, cast)
+            action = onehot_from_logits(logits)
+
+            move = list(self.moves.values())[np.argmax(action)]
+
+            config_ = self.propagate_state(config, move)
+            s_ = self.find_config(config_, self.sspa)
+            a = np.where(np.all(self.messages == comm, 1))[0]
+            D[s_, a] += 1
+            T[:, a] = normalize(D[:, a])
+        return T
 
 
 def rand_sample(p_x):

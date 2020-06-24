@@ -70,7 +70,7 @@ def run(config):
 
     #mdp = MDP(n_agents=maddpg.nagents, dims=(3, 3), n_step=1)
     start = time.time()
-    mdp = slMDP(n_step=1, agent=maddpg, n_landmarks=4, n_channels=3)
+    mdp = slMDP(n_step=1, agent=maddpg, n_landmarks=5, n_channels=4)
     print(f'computation time = {time.time()-start:.2f}s')
     for ep_i in range(0, config.n_episodes, config.n_rollout_threads):
         print("Episodes %i-%i of %i" % (ep_i + 1,
@@ -97,12 +97,10 @@ def run(config):
             next_obs, rewards, dones, infos = env.step(actions)
 
             ps = np.squeeze(mdp.config_from_pos(env.get_positions(), env.get_landmark_positions()))
-            comm = np.squeeze(env.get_communications())
-            mdp.update_transition(ps, comm, maddpg)
-            Tn = mdp.compute_transition_nstep(mdp.T, 1)
-            emps = np.ones_like(rewards) * estimate_empowerment_from_landmark_positions(mdp.find_config(ps, mdp.sspa),
-                                                                               Tn=Tn,
-                                                                               locations=mdp.sspa) if config.with_empowerment else rewards
+            T = mdp.compute_transition_for_state(ps, maddpg)
+            emps = rewards * estimate_empowerment_from_landmark_positions(mdp.find_config(ps, mdp.sspa),
+                                                                               T=T) if config.with_empowerment else rewards
+
             #emps = np.ones_like(rewards) * estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=mdp.Tn, locations=mdp.configurations) if config.with_empowerment else rewards
 
 

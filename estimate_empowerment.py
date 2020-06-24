@@ -17,9 +17,15 @@ def estimate_empowerment_from_positions(ps, Tn, locations, dims=(3, 3)):
             return empowerment(Tn, det=1., n_step=1, state=ss)
     return 0.
 
-def estimate_empowerment_from_landmark_positions(config, Tn, locations):
-    return empowerment(Tn, det=1., n_step=1, state=config)
-
+def estimate_empowerment_from_landmark_positions(config, T, n_step=1):
+    if n_step == 1:
+        tmap = lambda a: np.argmax(T[:, a])
+        seen = set()
+        for i in range(T.shape[1]):
+            seen.add(reduce(tmap, [i]))
+        # empowerment = log # of reachable states
+        return np.log2(len(seen))
+    return empowerment(T, det=1., n_step=n_step, state=config)
 
 
 def _positions_to_cell(ps, x_lim_in=(-1, 1), y_lim_in=(-1, 1), x_lim_out=(0, 3), y_lim_out=(0, 3)):
