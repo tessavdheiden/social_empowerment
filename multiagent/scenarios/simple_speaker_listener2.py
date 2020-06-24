@@ -2,6 +2,8 @@ import numpy as np
 from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
 
+colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
+                   [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15]])
 
 class Scenario(BaseScenario):
     def make_world(self):
@@ -43,11 +45,9 @@ class Scenario(BaseScenario):
         for i, agent in enumerate(world.agents):
             agent.color = np.array([0.25, 0.25, 0.25])
             # random properties for landmarks
-        world.landmarks[0].color = np.array([0.65, 0.15, 0.15])
-        world.landmarks[1].color = np.array([0.15, 0.65, 0.15])
-        world.landmarks[2].color = np.array([0.15, 0.15, 0.65])
-        world.landmarks[3].color = np.array([0.15, 0.65, 0.65])
-        world.landmarks[4].color = np.array([0.65, 0.15, 0.65])
+        for i, landmark in enumerate(world.landmarks):
+            landmark.color = colors[i]
+
         # special colors for goals
         world.agents[0].goal_a.color = world.agents[0].goal_b.color + np.array([0.45, 0.45, 0.45])
         # set random initial states

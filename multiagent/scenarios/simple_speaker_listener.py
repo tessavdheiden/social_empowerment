@@ -101,12 +101,14 @@ from torch.autograd import Variable
 cast = lambda x: Variable(torch.Tensor(x).view(1, -1), requires_grad=False)
 roff = lambda x: np.around(x, decimals=0)
 
+
 class MDP(BaseMDP):
-    def __init__(self, n_step, agent, n_landmarks, n_channels):
-        self.agent = agent
-        self.agent.prep_rollouts(device='cpu')
+    def __init__(self, actor, n_landmarks, n_channels):
+        self.actor = actor
+        self.actor.prep_rollouts(device='cpu')
         self.n_lm = n_landmarks
         self.n_ch = n_channels
+        self.max_dim = 2
 
         self.sspa = self._make_sspa(n_landmarks)
 
@@ -129,88 +131,62 @@ class MDP(BaseMDP):
         self.D = None
 
     def _make_sspa(self, n_landmarks):
-        locations = list(itertools.product([-1, 0, 1], repeat=2))
+        locations = list(itertools.product([-self.max_dim + 1, 0, self.max_dim - 1], repeat=2))
         for _ in range(n_landmarks):
-            locations.append((2, 2))
+            locations.append((self.max_dim, self.max_dim))
         return np.array(list(itertools.permutations(locations, n_landmarks)))
 
-    def propagate_state(self, s, move):
+    def _idx_s_not_in_bounds(self, s):
+        return np.where(np.any(s >= self.max_dim, 1) | np.any(s <= -self.max_dim, 1))[0]
+
+    def propagate_delta_pos(self, s, move):
         new_state = s - move
-        new_state[np.where(np.any(new_state > 1, 1) | np.any(new_state < -1, 1))[0], :] = np.array([2, 2])
+        new_state[self._idx_s_not_in_bounds(new_state), :] = np.array([self.max_dim, self.max_dim])
         return new_state
 
-    def find_config(self, c, sspa):
+    def _find_idx_from_delta_pos(self, c, sspa):
         other = sspa.reshape(-1, self.n_lm * 2)
         return np.argmax(np.all(other == c.flatten(), 1))
 
-    def config_from_pos(self, p_land, p_agent):
-        config = roff(p_land - p_agent)
-        config[np.where(np.any(config > 1, 1) | np.any(config < -1, 1))[0], :] = np.array([2, 2])
-        return config
+    def _delta_landmark_pos(self, p_land, p_agent):
+        delta_pos = p_land - p_agent
+        delta_pos = roff(delta_pos)
+        delta_pos[self._idx_s_not_in_bounds(delta_pos), :] = np.array([self.max_dim, self.max_dim])
+        return delta_pos
 
-    def act(self, s, a, agent, cast):
+    def act(self, s, a):
         """ get updated state after action
         s  : listener's relative positions to landmarks
         a : message of speaker
         prob : probability of performing action
         """
         obs = cast(np.concatenate((np.array([0, 0]), *s, a), axis=0))
-        return agent.agents[1].policy(obs)
+        return self.actor.agents[1].policy(obs)
 
-    def compute_transition(self, sspa, agent):
-        """ Computes probabilistic model T[s',a,s] corresponding to a grid world with 2 agents 3 landmarks. """
-        self.T = np.zeros((len(sspa), len(self.messages), len(sspa)))
-        # experience
-        self.D = self.T.copy()
-
-        if self.n_lm > 4:
-            return self.T
-
-        for s, config in enumerate(sspa):
-            for i, comm in enumerate(self.messages):
-                logits = self.act(config, comm, agent, cast)
-                action = onehot_from_logits(logits)
-                move = list(self.moves.values())[np.argmax(action)]
-
-                config_ = self.propagate_state(config, move)
-                s_ = self.find_config(config_, sspa)
-
-                self.T[s_, i, s] += 1
-        return self.T
-
-    def update_transition(self, config, comm, agent):
-        """ Updates probabilistic model T[s',a,s] corresponding to a grid world with 2 agents n landmarks. """
-        s = self.find_config(config, self.sspa)
-        for comm in self.messages:
-            logits = self.act(config, comm, agent, cast)
-            action = onehot_from_logits(logits)
-
-            move = list(self.moves.values())[np.argmax(action)]
-
-            config_ = self.propagate_state(config, move)
-            s_ = self.find_config(config_, self.sspa)
-            a = np.where(np.all(self.messages == comm, 1))[0]
-            self.D[s_, a, s] += 1
-            self.T[:, a, s] = normalize(self.D[:, a, s])
-
-    def compute_transition_for_state(self, config, agent):
-        """ Updates reduced probabilistic model T[s',a] corresponding to a grid world with 2 agents n landmarks. """
+    def get_transition_for_state(self, p_land, p_agent):
+        delta_pos = np.squeeze(self._delta_landmark_pos(p_land, p_agent))
+        """ Get probabilistic model T[s',a] corresponding to a grid world with 2 agents n landmarks. """
         # transition function
         T = np.zeros((len(self.sspa), len(self.messages)))
         # experience
         D = T.copy()
-        for comm in self.messages:
-            logits = self.act(config, comm, agent, cast)
+        for i, comm in enumerate(self.messages):
+            logits = self.act(delta_pos, comm)
             action = onehot_from_logits(logits)
 
             move = list(self.moves.values())[np.argmax(action)]
 
-            config_ = self.propagate_state(config, move)
-            s_ = self.find_config(config_, self.sspa)
+            delta_pos_ = self.propagate_delta_pos(delta_pos, move)
+            s_ = self._find_idx_from_delta_pos(delta_pos_, self.sspa)
             a = np.where(np.all(self.messages == comm, 1))[0]
+            assert i == a
             D[s_, a] += 1
             T[:, a] = normalize(D[:, a])
         return T
+
+    def get_idx_from_positions(self, p_land, p_agent):
+        delta_p = np.squeeze(self._delta_landmark_pos(p_land, p_agent))
+        return self._find_idx_from_delta_pos(delta_p, self.sspa)
 
 
 def rand_sample(p_x):
@@ -259,7 +235,7 @@ if __name__ == '__main__':
     fig, ax = plt.subplots(nrows=6, ncols=5, figsize=(12, 6))
     agent = load_agent()
 
-    mdp = MDP(n_step=1, agent=agent)
+    mdp = MDP(n_step=1, actor=agent)
     E = np.zeros(len(mdp.sspa))
 
     for s, state in enumerate(mdp.sspa):
@@ -282,7 +258,7 @@ if __name__ == '__main__':
             new_action = onehot_from_logits(logits)
             move = list(mdp.moves.values())[np.argmax(action)]
 
-            config_ = mdp.propagate_state(state, move)
+            config_ = mdp.propagate_delta_pos(state, move)
             s_ = mdp.find_config(config_, mdp.sspa)
 
             draw_config(config_, count, i+1, ax)
@@ -301,7 +277,7 @@ if __name__ == '__main__':
             new_action = onehot_from_logits(logits)
             move = list(mdp.moves.values())[np.argmax(action)]
 
-            config_ = mdp.propagate_state(state, move)
+            config_ = mdp.propagate_delta_pos(state, move)
             s_ = mdp.find_config(config_, mdp.sspa)
 
             draw_config(config_, count, i+1, ax)
