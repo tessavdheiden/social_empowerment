@@ -101,6 +101,9 @@ from torch.autograd import Variable
 cast = lambda x: Variable(torch.Tensor(x).view(1, -1), requires_grad=False)
 roff = lambda x: np.around(x, decimals=0)
 
+rep_rows = lambda x, n: np.repeat(np.expand_dims(x, 0), n, 0)
+rep_cols = lambda x, n: np.repeat(np.expand_dims(x, 1), n, 1)
+
 
 class MDP(BaseMDP):
     def __init__(self, actor, n_landmarks, n_channels):
@@ -108,7 +111,7 @@ class MDP(BaseMDP):
         self.actor.prep_rollouts(device='cpu')
         self.n_lm = n_landmarks
         self.n_ch = n_channels
-        self.max_dim = 2
+        self.max_dim = 2 # TODO: reconsider resolution
 
         self.sspa = self._make_sspa(n_landmarks)
 
@@ -119,7 +122,7 @@ class MDP(BaseMDP):
             "S": np.array([0, -1]),     # DOWN
             "E": np.array([1, 0]),      # RIGHT
             "W": np.array([-1, 0])      # LEFT
-        }
+        } # TODO: reconsider delta x
 
         self.messages = np.zeros((n_channels + 1, n_channels))
         for i in range(1, n_channels + 1):
@@ -134,7 +137,9 @@ class MDP(BaseMDP):
         locations = list(itertools.product([-self.max_dim + 1, 0, self.max_dim - 1], repeat=2))
         for _ in range(n_landmarks):
             locations.append((self.max_dim, self.max_dim))
-        return np.array(list(itertools.permutations(locations, n_landmarks)))
+        permutations = np.array(list(itertools.permutations(locations, n_landmarks)))
+        unique_perm = np.unique(permutations.reshape(-1, n_landmarks*2), axis=0)
+        return unique_perm.reshape(-1, n_landmarks, 2)
 
     def _idx_s_not_in_bounds(self, s):
         return np.where(np.any(s >= self.max_dim, 1) | np.any(s <= -self.max_dim, 1))[0]
@@ -184,6 +189,44 @@ class MDP(BaseMDP):
             T[:, a] = normalize(D[:, a])
         return T
 
+    def get_transition_for_state_batch_implementation(self, p_land, p_agent):
+        to_torch = lambda x: Variable(torch.Tensor(x), requires_grad=False)
+        delta_pos = np.squeeze(self._delta_landmark_pos(p_land, p_agent))
+        """ Get probabilistic model T[s',a] corresponding to a grid world with 2 agents n landmarks. """
+        # transition function
+        T = np.zeros((len(self.sspa), len(self.messages)))
+        # experience
+        D = T.copy()
+        n = len(self.messages)
+        obs = np.repeat(np.concatenate((np.array([0, 0]), *delta_pos), axis=0).reshape(1, -1), n, axis=0)
+        obs = to_torch(np.concatenate((obs, self.messages), axis=1))
+        logits = self.actor.agents[1].policy(obs)
+        actions = onehot_from_logits(logits)
+        moves = np.array(list(self.moves.values()))[actions.max(1)[1]]
+
+        new_states = rep_rows(delta_pos, n) - rep_cols(moves, self.n_lm)
+
+        new_states = new_states.reshape(-1, 2)
+        new_states[self._idx_s_not_in_bounds(new_states), :] = np.array([self.max_dim, self.max_dim])
+        new_states = new_states.reshape(n, self.n_lm, 2).reshape(n, self.n_lm * 2)
+        idx = list(map(lambda x: np.where(np.all(self.sspa.reshape(-1, self.n_lm * 2) == x, 1))[0], new_states))
+        idx = np.unique(np.array(idx))
+
+        for i, comm in enumerate(self.messages):
+            logits = self.act(delta_pos, comm)
+            action = onehot_from_logits(logits)
+
+            move = list(self.moves.values())[np.argmax(action)]
+
+            delta_pos_ = self.propagate_delta_pos(delta_pos, move)
+            s_ = self._find_idx_from_delta_pos(delta_pos_, self.sspa)
+            a = np.where(np.all(self.messages == comm, 1))[0]
+            assert i == a
+            D[s_, a] += 1
+            T[:, a] = normalize(D[:, a])
+
+        return T
+
     def get_idx_from_positions(self, p_land, p_agent):
         delta_p = np.squeeze(self._delta_landmark_pos(p_land, p_agent))
         return self._find_idx_from_delta_pos(delta_p, self.sspa)
@@ -230,59 +273,4 @@ def draw_config(l_s, row, col, ax):
     ax[row, col].set_xlim(-1.5, 1.5)
 
 
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(nrows=6, ncols=5, figsize=(12, 6))
-    agent = load_agent()
 
-    mdp = MDP(n_step=1, actor=agent)
-    E = np.zeros(len(mdp.sspa))
-
-    for s, state in enumerate(mdp.sspa):
-        print(f'progress = {s} our of {len(mdp.sspa)}')
-        E[s] = empowerment(T=mdp.Tn, det=1, n_step=1, state=s)
-    idx = np.argsort(E)
-    low_idx = np.where(E == E[idx[0]])[0]
-    high_idx = np.where(E == E[idx[-1]])[0]
-
-    count = 0
-    while count < 3:
-        idx = np.random.choice(low_idx)
-        low_e_config = mdp.sspa[idx]
-        draw_config(low_e_config, count, 0, ax)
-        ax[count, 0].set_xlabel(f'E={E[idx]}')
-
-        state = low_e_config
-        for i, action in enumerate(mdp.messages):
-            logits = mdp.act(state, action, agent, cast)
-            new_action = onehot_from_logits(logits)
-            move = list(mdp.moves.values())[np.argmax(action)]
-
-            config_ = mdp.propagate_delta_pos(state, move)
-            s_ = mdp.find_config(config_, mdp.sspa)
-
-            draw_config(config_, count, i+1, ax)
-            ax[count, i+1].set_xlabel(f'{action}, {s_}, {move}')
-        count += 1
-
-    while count < 6:
-        idx = np.random.choice(high_idx)
-        high_e_config = mdp.sspa[idx]
-        draw_config(high_e_config, count, 0, ax)
-        ax[count, 0].set_xlabel(f'E={E[idx]}')
-
-        state = high_e_config
-        for i, action in enumerate(mdp.messages):
-            logits = mdp.act(state, action, agent, cast)
-            new_action = onehot_from_logits(logits)
-            move = list(mdp.moves.values())[np.argmax(action)]
-
-            config_ = mdp.propagate_delta_pos(state, move)
-            s_ = mdp.find_config(config_, mdp.sspa)
-
-            draw_config(config_, count, i+1, ax)
-            ax[count, i+1].set_xlabel(f'{action}, {s_}, {move}')
-        count += 1
-
-    plt.show()
-    # plt.savefig('tmp.png')

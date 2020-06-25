@@ -96,10 +96,13 @@ def run(config):
             actions = [[ac[i] for ac in agent_actions] for i in range(config.n_rollout_threads)]
             next_obs, rewards, dones, infos = env.step(actions)
 
-            land_p, agent_p = env.get_positions(), env.get_landmark_positions()
-            T = mdp.get_transition_for_state(land_p, agent_p)
-            emps = rewards * estimate_empowerment_from_landmark_positions(mdp.get_idx_from_positions(land_p, agent_p),
-                                                                               T=T) if config.with_empowerment else rewards
+            if config.with_empowerment:
+                land_p, agent_p = env.get_positions(), env.get_landmark_positions()
+                T = mdp.get_transition_for_state_batch_implementation(land_p, agent_p)
+                emps = rewards * estimate_empowerment_from_landmark_positions(mdp.get_idx_from_positions(land_p, agent_p),
+                                                                               T=T)
+            else:
+                emps = rewards
 
             #emps = np.ones_like(rewards) * estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=mdp.Tn, locations=mdp.configurations) if config.with_empowerment else rewards
 

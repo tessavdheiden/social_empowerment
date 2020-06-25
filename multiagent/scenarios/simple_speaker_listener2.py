@@ -9,8 +9,8 @@ class Scenario(BaseScenario):
     def make_world(self):
         world = World()
         # set any world properties first
-        world.dim_c = 4
-        num_landmarks = 5
+        world.dim_c = 5
+        num_landmarks = 6
         world.collaborative = True
         # add agents
         world.agents = [Agent() for i in range(2)]
@@ -75,9 +75,10 @@ class Scenario(BaseScenario):
 
     def observation(self, agent, world):
         # goal color
-        goal_color = np.zeros(world.dim_color)
+        goal_pos = [np.zeros(world.dim_p), np.zeros(world.dim_p)]
         if agent.goal_b is not None:
-            goal_color = agent.goal_b.color
+            goal_pos[0] = agent.goal_a.state.p_pos
+            goal_pos[1] = agent.goal_b.state.p_pos
 
         # get positions of all entities in this agent's reference frame
         entity_pos = []
@@ -90,9 +91,12 @@ class Scenario(BaseScenario):
             if other is agent or (other.state.c is None): continue
             comm.append(other.state.c)
 
+        # position of other agent
+
+
         # speaker
         if not agent.movable:
-            return np.concatenate([goal_color])
+            return np.concatenate([goal_pos[0]] + [goal_pos[1]])
         # listener
         if agent.silent:
             return np.concatenate([agent.state.p_vel] + entity_pos + comm)
