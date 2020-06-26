@@ -98,8 +98,11 @@ from functools import reduce
 from utils.agents import onehot_from_logits
 import torch
 from torch.autograd import Variable
+import sys
+np.set_printoptions(threshold=sys.maxsize)
+
 cast = lambda x: Variable(torch.Tensor(x).view(1, -1), requires_grad=False)
-roff = lambda x: np.around(x, decimals=0)
+roff = lambda x: np.around(x * 2, decimals=0) / 2
 
 rep_rows = lambda x, n: np.repeat(np.expand_dims(x, 0), n, 0)
 rep_cols = lambda x, n: np.repeat(np.expand_dims(x, 1), n, 1)
@@ -111,7 +114,8 @@ class MDP(BaseMDP):
         self.actor.prep_rollouts(device='cpu')
         self.n_lm = n_landmarks
         self.n_ch = n_channels
-        self.max_dim = 2 # TODO: reconsider resolution
+        self.dim = 1 # TODO: reconsider resolution
+        self.size = 3
 
         self.sspa = self._make_sspa(n_landmarks)
 
@@ -134,19 +138,23 @@ class MDP(BaseMDP):
         self.D = None
 
     def _make_sspa(self, n_landmarks):
-        locations = list(itertools.product([-self.max_dim + 1, 0, self.max_dim - 1], repeat=2))
+        cells = np.linspace(-self.dim, self.dim, self.size)
+        locations = list(itertools.product(cells, repeat=2))
+
         for _ in range(n_landmarks):
-            locations.append((self.max_dim, self.max_dim))
-        permutations = np.array(list(itertools.permutations(locations, n_landmarks)))
+            locations.append((self.dim+1, self.dim+1))
+        permutations = np.array(list(itertools.product(locations, repeat=n_landmarks)))
+        #permutations = np.array(list(itertools.permutations(locations, n_landmarks)))
         unique_perm = np.unique(permutations.reshape(-1, n_landmarks*2), axis=0)
-        return unique_perm.reshape(-1, n_landmarks, 2)
+
+        return roff(unique_perm.reshape(-1, n_landmarks, 2))
 
     def _idx_s_not_in_bounds(self, s):
-        return np.where(np.any(s >= self.max_dim, 1) | np.any(s <= -self.max_dim, 1))[0]
+        return np.where(np.any(s > self.dim, 1) | np.any(s < -self.dim, 1))[0]
 
     def propagate_delta_pos(self, s, move):
-        new_state = s - move
-        new_state[self._idx_s_not_in_bounds(new_state), :] = np.array([self.max_dim, self.max_dim])
+        new_state = roff(s - move)
+        new_state[self._idx_s_not_in_bounds(new_state), :] = np.array([self.dim+1, self.dim+1])
         return new_state
 
     def _find_idx_from_delta_pos(self, c, sspa):
@@ -156,7 +164,7 @@ class MDP(BaseMDP):
     def _delta_landmark_pos(self, p_land, p_agent):
         delta_pos = p_land - p_agent
         delta_pos = roff(delta_pos)
-        delta_pos[self._idx_s_not_in_bounds(delta_pos), :] = np.array([self.max_dim, self.max_dim])
+        delta_pos[self._idx_s_not_in_bounds(delta_pos), :] = np.array([self.dim+1, self.dim+1])
         return delta_pos
 
     def act(self, s, a):
@@ -204,26 +212,17 @@ class MDP(BaseMDP):
         actions = onehot_from_logits(logits)
         moves = np.array(list(self.moves.values()))[actions.max(1)[1]]
 
-        new_states = rep_rows(delta_pos, n) - rep_cols(moves, self.n_lm)
+        new_states = roff(rep_rows(delta_pos, n) - rep_cols(moves, self.n_lm))
 
         new_states = new_states.reshape(-1, 2)
-        new_states[self._idx_s_not_in_bounds(new_states), :] = np.array([self.max_dim, self.max_dim])
+        new_states[self._idx_s_not_in_bounds(new_states), :] = np.array([self.dim+1, self.dim+1])
         new_states = new_states.reshape(n, self.n_lm, 2).reshape(n, self.n_lm * 2)
         idx = list(map(lambda x: np.where(np.all(self.sspa.reshape(-1, self.n_lm * 2) == x, 1))[0], new_states))
-        idx = np.unique(np.array(idx))
-
-        for i, comm in enumerate(self.messages):
-            logits = self.act(delta_pos, comm)
-            action = onehot_from_logits(logits)
-
-            move = list(self.moves.values())[np.argmax(action)]
-
-            delta_pos_ = self.propagate_delta_pos(delta_pos, move)
-            s_ = self._find_idx_from_delta_pos(delta_pos_, self.sspa)
-            a = np.where(np.all(self.messages == comm, 1))[0]
-            assert i == a
-            D[s_, a] += 1
-            T[:, a] = normalize(D[:, a])
+        s_ = np.array(idx)
+        a = np.arange(len(self.messages))
+        print(f'a={a} s_={s_}')
+        D[s_, a] += 1
+        T[:, a] = normalize(D[:, a])
 
         return T
 
