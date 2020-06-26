@@ -222,8 +222,7 @@ class MDP(BaseMDP):
         new_states = new_states.reshape(-1, 2)
         new_states[self._idx_s_not_in_bounds(new_states), :] = np.array([self.dim+1, self.dim+1])
         new_states = new_states.reshape(n, self.n_lm, 2).reshape(n, self.n_lm * 2)
-        idx = list(map(lambda x: np.where(np.all(self.sspa.reshape(-1, self.n_lm * 2) == x, 1))[0], new_states)) # TODO: Can idx be empty?
-        #idx = list(map(lambda x: -1 if len(x) == 0 else x[0], idx))
+        idx = list(map(lambda x: np.where(np.all(self.sspa.reshape(-1, self.n_lm * 2) == x, 1))[0][0], new_states)) # TODO: Can idx be empty?
         s_ = np.array(idx).reshape(-1)
         a = np.arange(len(self.messages))
 
