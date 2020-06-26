@@ -218,11 +218,12 @@ class MDP(BaseMDP):
         new_states[self._idx_s_not_in_bounds(new_states), :] = np.array([self.dim+1, self.dim+1])
         new_states = new_states.reshape(n, self.n_lm, 2).reshape(n, self.n_lm * 2)
         idx = list(map(lambda x: np.where(np.all(self.sspa.reshape(-1, self.n_lm * 2) == x, 1))[0], new_states))
-        s_ = np.array(idx)
+        s_ = np.array(idx).rehape(-1)
         a = np.arange(len(self.messages))
-        print(f'a={a} s_={s_}')
-        D[s_, a] += 1
-        T[:, a] = normalize(D[:, a])
+        print(f'a={a} s_={s_} new_states={new_states.reshape(-1)}')
+        if s_.shape[0] == len(a):
+            D[s_, a] += 1
+            T[:, a] = normalize(D[:, a])
 
         return T
 
