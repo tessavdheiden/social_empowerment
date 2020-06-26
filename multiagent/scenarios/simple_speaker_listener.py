@@ -101,8 +101,13 @@ from torch.autograd import Variable
 import sys
 np.set_printoptions(threshold=sys.maxsize)
 
+SIZE = 3
+
 cast = lambda x: Variable(torch.Tensor(x).view(1, -1), requires_grad=False)
-roff = lambda x: np.around(x * 2, decimals=0) / 2
+if SIZE == 5:
+    roff = lambda x: np.around(x *  2, decimals=0) / 2
+else:
+    roff = lambda x: np.around(x, decimals=0) # TODO: reconsider as function of dim
 
 rep_rows = lambda x, n: np.repeat(np.expand_dims(x, 0), n, 0)
 rep_cols = lambda x, n: np.repeat(np.expand_dims(x, 1), n, 1)
@@ -114,8 +119,8 @@ class MDP(BaseMDP):
         self.actor.prep_rollouts(device='cpu')
         self.n_lm = n_landmarks
         self.n_ch = n_channels
-        self.dim = 1 # TODO: reconsider resolution
-        self.size = 3
+        self.dim = 1
+        self.size = SIZE
 
         self.sspa = self._make_sspa(n_landmarks)
 
@@ -217,13 +222,13 @@ class MDP(BaseMDP):
         new_states = new_states.reshape(-1, 2)
         new_states[self._idx_s_not_in_bounds(new_states), :] = np.array([self.dim+1, self.dim+1])
         new_states = new_states.reshape(n, self.n_lm, 2).reshape(n, self.n_lm * 2)
-        idx = list(map(lambda x: np.where(np.all(self.sspa.reshape(-1, self.n_lm * 2) == x, 1))[0], new_states))
-        s_ = np.array(idx).rehape(-1)
+        idx = list(map(lambda x: np.where(np.all(self.sspa.reshape(-1, self.n_lm * 2) == x, 1))[0], new_states)) # TODO: Can idx be empty?
+        #idx = list(map(lambda x: -1 if len(x) == 0 else x[0], idx))
+        s_ = np.array(idx).reshape(-1)
         a = np.arange(len(self.messages))
-        print(f'a={a} s_={s_} new_states={new_states.reshape(-1)}')
-        if s_.shape[0] == len(a):
-            D[s_, a] += 1
-            T[:, a] = normalize(D[:, a])
+
+        D[s_, a] += 1
+        T[:, a] = normalize(D[:, a])
 
         return T
 
