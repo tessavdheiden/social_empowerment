@@ -13,7 +13,7 @@ class MADDPG(object):
     """
     def __init__(self, agent_init_params, alg_types,
                  gamma=0.95, tau=0.01, lr=0.01, hidden_dim=64,
-                 discrete_action=False):
+                 discrete_action=False, recurrent=False):
         """
         Inputs:
             agent_init_params (list of dict): List of dicts with parameters to
@@ -28,11 +28,12 @@ class MADDPG(object):
             lr (float): Learning rate for policy and critic
             hidden_dim (int): Number of hidden dimensions for networks
             discrete_action (bool): Whether or not to use discrete action space
+            recurrent (bool): Whether or not to use LSTM instead of MLP
         """
         self.nagents = len(alg_types)
         self.alg_types = alg_types
         self.agents = [DDPGAgent(lr=lr, discrete_action=discrete_action,
-                                 hidden_dim=hidden_dim,
+                                 hidden_dim=hidden_dim, recurrent=recurrent,
                                  **params)
                        for params in agent_init_params]
         self.agent_init_params = agent_init_params
@@ -231,7 +232,7 @@ class MADDPG(object):
 
     @classmethod
     def init_from_env(cls, env, agent_alg="MADDPG", adversary_alg="MADDPG",
-                      gamma=0.95, tau=0.01, lr=0.01, hidden_dim=64):
+                      gamma=0.95, tau=0.01, lr=0.01, hidden_dim=64, recurrent=False):
         """
         Instantiate instance of this class from multi-agent environment
         """
@@ -266,7 +267,8 @@ class MADDPG(object):
                      'hidden_dim': hidden_dim,
                      'alg_types': alg_types,
                      'agent_init_params': agent_init_params,
-                     'discrete_action': discrete_action}
+                     'discrete_action': discrete_action,
+                     'recurrent': recurrent}
         instance = cls(**init_dict)
         instance.init_dict = init_dict
         return instance

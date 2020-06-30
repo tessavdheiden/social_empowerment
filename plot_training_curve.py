@@ -11,12 +11,12 @@ colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
                    [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15]])
 
 
-def load_data(file_path, name):
+def load_data(file_path, name, agent_num=1):
     cast = lambda x: np.array(x)
     with open(file_path) as json_file:
         data = json.load(json_file)
         for key, value in data.items():
-            if key.split('/')[-1] == name:
+            if key.split('/')[-1] == name and int(key.split('/')[-3][-1]) == agent_num:
                 d = cast(value)
                 return d[:, 2]
 

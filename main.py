@@ -61,15 +61,17 @@ def run(config):
                                   adversary_alg=config.adversary_alg,
                                   tau=config.tau,
                                   lr=config.lr,
-                                  hidden_dim=config.hidden_dim)
+                                  hidden_dim=config.hidden_dim,
+                                  recurrent=config.recurrent)
     replay_buffer = ReplayBuffer(config.buffer_length, maddpg.nagents,
                                  [obsp.shape[0] for obsp in env.observation_space],
                                  [acsp.shape[0] if isinstance(acsp, Box) else acsp.n if isinstance(acsp, Discrete) else
                                  sum(acsp.high - acsp.low + 1) for acsp in env.action_space])
     t = 0
 
-    #mdp = MDP(n_agents=maddpg.nagents, dims=(3, 3), n_step=1)
-    mdp = slMDP(actor=maddpg, n_landmarks=env.get_landmark_positions().shape[1], n_channels=env.get_communications().shape[2])
+    if config.with_empowerment:
+        #mdp = MDP(n_agents=maddpg.nagents, dims=(3, 3), n_step=1)
+        mdp = slMDP(actor=maddpg, n_landmarks=env.get_landmark_positions().shape[1], n_channels=env.get_communications().shape[2])
     for ep_i in range(0, config.n_episodes, config.n_rollout_threads):
         print("Episodes %i-%i of %i" % (ep_i + 1,
                                         ep_i + 1 + config.n_rollout_threads,
@@ -96,11 +98,11 @@ def run(config):
 
             if config.with_empowerment:
                 land_p, agent_p = env.get_positions(), env.get_landmark_positions()
-                start = time.time()
+                #start = time.time()
                 T = mdp.get_transition_for_state_batch_implementation(land_p, agent_p)
                 emps = rewards * estimate_empowerment_from_landmark_positions(mdp.get_idx_from_positions(land_p, agent_p),
                                                                                T=T)
-                print(f'computation time = {time.time() - start:.3f}s')
+                #print(f'computation time = {time.time() - start:.3f}s')
             else:
                 emps = rewards
 
@@ -172,6 +174,8 @@ if __name__ == '__main__':
                         default="MADDPG", type=str,
                         choices=['MADDPG', 'DDPG'])
     parser.add_argument("--discrete_action",
+                        action='store_true')
+    parser.add_argument("--recurrent",
                         action='store_true')
     parser.add_argument("--with_empowerment",
                         action='store_true')

@@ -11,7 +11,7 @@ class DDPGAgent(object):
     critic, exploration noise)
     """
     def __init__(self, num_in_pol, num_out_pol, num_in_critic, hidden_dim=64,
-                 lr=0.01, discrete_action=True):
+                 lr=0.01, discrete_action=True, recurrent=False):
         """
         Inputs:
             num_in_pol (int): number of dimensions for policy input
@@ -21,17 +21,21 @@ class DDPGAgent(object):
         self.policy = MLPNetwork(num_in_pol, num_out_pol,
                                  hidden_dim=hidden_dim,
                                  constrain_out=True,
-                                 discrete_action=discrete_action)
+                                 discrete_action=discrete_action,
+                                 recurrent=recurrent)
         self.critic = MLPNetwork(num_in_critic, 1,
                                  hidden_dim=hidden_dim,
-                                 constrain_out=False)
+                                 constrain_out=False,
+                                 recurrent=recurrent)
         self.target_policy = MLPNetwork(num_in_pol, num_out_pol,
                                         hidden_dim=hidden_dim,
                                         constrain_out=True,
-                                        discrete_action=discrete_action)
+                                        discrete_action=discrete_action,
+                                        recurrent=recurrent)
         self.target_critic = MLPNetwork(num_in_critic, 1,
                                         hidden_dim=hidden_dim,
-                                        constrain_out=False)
+                                        constrain_out=False,
+                                        recurrent=recurrent)
         hard_update(self.target_policy, self.policy)
         hard_update(self.target_critic, self.critic)
         self.policy_optimizer = Adam(self.policy.parameters(), lr=lr)

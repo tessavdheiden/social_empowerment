@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -6,7 +7,7 @@ class MLPNetwork(nn.Module):
     MLP network (can be used as value or policy)
     """
     def __init__(self, input_dim, out_dim, hidden_dim=64, nonlin=F.relu,
-                 constrain_out=False, norm_in=True, discrete_action=True):
+                 constrain_out=False, norm_in=True, discrete_action=True, recurrent=False):
         """
         Inputs:
             input_dim (int): Number of dimensions in input
@@ -23,7 +24,12 @@ class MLPNetwork(nn.Module):
         else:
             self.in_fn = lambda x: x
         self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+
+        if recurrent:
+            self.fc2 = RecurrentUnit(hidden_dim, hidden_dim)
+        else:
+            self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+
         self.fc3 = nn.Linear(hidden_dim, out_dim)
         self.nonlin = nonlin
         if constrain_out and not discrete_action:
@@ -44,3 +50,22 @@ class MLPNetwork(nn.Module):
         h2 = self.nonlin(self.fc2(h1))
         out = self.out_fn(self.fc3(h2))
         return out
+
+
+class RecurrentUnit(nn.Module):
+    def __init__(self, input_dim, out_dim):
+        super(RecurrentUnit, self).__init__()
+        self.lstm = nn.LSTM(input_dim, out_dim)
+        self.h_0 = nn.Parameter(torch.randn(input_dim))
+        self.c_0 = nn.Parameter(torch.randn(input_dim))
+
+    def init_state(self, batch_size):
+        h_0 = self.h_0.repeat(1, batch_size, 1)
+        c_0 = self.c_0.repeat(1, batch_size, 1)
+        return (h_0, c_0)
+
+    def forward(self, x):
+        batch_size, feat_size = x.shape
+        state = self.init_state(batch_size)
+        x, _ = self.lstm(x.unsqueeze(0), state)
+        return x.view(batch_size, feat_size)
