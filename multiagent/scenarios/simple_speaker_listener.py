@@ -122,7 +122,10 @@ class MDP(BaseMDP):
         self.dim = 1
         self.size = SIZE
 
-        self.sspa = self._make_sspa(n_landmarks)
+        self.cell_num = 4
+        self.cell_size = 1
+
+        #self.sspa = self._make_sspa(n_landmarks)
 
         # listener's actions
         self.moves = {
@@ -231,9 +234,49 @@ class MDP(BaseMDP):
 
         return T
 
-    def get_idx_from_positions(self, p_land, p_agent):
-        delta_p = np.squeeze(self._delta_landmark_pos(p_land, p_agent))
-        return self._find_idx_from_delta_pos(delta_p, self.sspa)
+    def get_unique_next_states(self, p_land, p_agent, obs, next_obs, torch_obs):
+        cast = lambda x: Variable(torch.Tensor(x), requires_grad=False)
+
+        n_landmarks = len(p_land)
+        n_messages = len(self.messages)
+
+        # filter out landmarks
+        land_pos = obs[:, 1][0][2:2 + n_landmarks * 2]
+
+        # filter out messages
+        pos_obs = obs[:, 1][0][:-self.n_ch]
+
+        # create unique configuration of current obs
+        # grid_indices = self.get_grid_indices(land_pos)
+        # occupancy_map = np.isin(range(self.cell_num ** 2), grid_indices)
+
+        # create future configuratins
+        batch_obs = np.repeat(pos_obs.reshape(1, -1), n_messages, axis=0)
+        torch_obs = cast(np.concatenate((batch_obs, self.messages), axis=1))
+        logits = self.actor.agents[1].policy(torch_obs)
+        actions = onehot_from_logits(logits)
+        moves = np.array(list(self.moves.values()))[actions.max(1)[1]]
+        next_land_pos = roff(rep_rows(land_pos.reshape(-1, 2), n_messages) - rep_cols(moves, n_landmarks))
+        next_grid_indices = self.get_grid_indices(next_land_pos).reshape(n_messages, n_landmarks)
+        assert next_grid_indices.shape[0] == next_land_pos.shape[0]
+
+        # return unique set
+        unique_config = np.unique(next_grid_indices, axis=0)
+        assert unique_config.shape[1] == n_landmarks
+
+        return len(unique_config) # TODO: return something which can be used for Blahut
+
+    def get_grid_indices(self, obs):
+        p_land = obs.reshape(-1, 2)
+        other_px, other_py = p_land[:, 0], p_land[:, 1]
+        other_x_index = np.floor(other_px / self.cell_size + self.cell_num / 2)
+        other_y_index = np.floor(other_py / self.cell_size + self.cell_num / 2)
+        other_x_index[other_x_index < 0] = float('-inf')
+        other_x_index[other_x_index >= self.cell_num] = float('-inf')
+        other_y_index[other_y_index < 0] = float('-inf')
+        other_y_index[other_y_index >= self.cell_num] = float('-inf')
+        grid_indices = self.cell_num * other_y_index + other_x_index
+        return grid_indices
 
 
 def rand_sample(p_x):

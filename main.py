@@ -69,9 +69,10 @@ def run(config):
                                  sum(acsp.high - acsp.low + 1) for acsp in env.action_space])
     t = 0
 
-    if config.with_empowerment:
+    if config.empowerment:
+        n_landmarks = env.get_landmark_positions().shape[1]
         #mdp = MDP(n_agents=maddpg.nagents, dims=(3, 3), n_step=1)
-        mdp = slMDP(actor=maddpg, n_landmarks=env.get_landmark_positions().shape[1], n_channels=env.get_communications().shape[2])
+        mdp = slMDP(actor=maddpg, n_landmarks=n_landmarks, n_channels=env.get_communications().shape[2])
     for ep_i in range(0, config.n_episodes, config.n_rollout_threads):
         print("Episodes %i-%i of %i" % (ep_i + 1,
                                         ep_i + 1 + config.n_rollout_threads,
@@ -84,6 +85,7 @@ def run(config):
         maddpg.scale_noise(config.final_noise_scale + (config.init_noise_scale - config.final_noise_scale) * explr_pct_remaining)
         maddpg.reset_noise()
         for et_i in range(config.episode_length):
+            #start = time.time()
             # rearrange observations to be per agent, and convert to torch Variable
             torch_obs = [Variable(torch.Tensor(np.vstack(obs[:, i])),
                                   requires_grad=False)
@@ -96,19 +98,20 @@ def run(config):
             actions = [[ac[i] for ac in agent_actions] for i in range(config.n_rollout_threads)]
             next_obs, rewards, dones, infos = env.step(actions)
 
-            if config.with_empowerment:
-                land_p, agent_p = env.get_positions(), env.get_landmark_positions()
-                #start = time.time()
-                T = mdp.get_transition_for_state_batch_implementation(land_p, agent_p)
-                emps = rewards * estimate_empowerment_from_landmark_positions(mdp.get_idx_from_positions(land_p, agent_p),
-                                                                               T=T)
-                #print(f'computation time = {time.time() - start:.3f}s')
+            if config.empowerment:
+                p_agent, p_land = env.get_positions(), env.get_landmark_positions()
+
+                #T = mdp.get_transition_for_state_batch_implementation(land_p, agent_p)
+                #emps = rewards * estimate_empowerment_from_landmark_positions(mdp.get_idx_from_positions(land_p, agent_p),
+                #                                                               T=T)
+                empowerment = rewards * mdp.get_unique_next_states(p_land.reshape(-1, 2), p_agent.reshape(-1, 2), obs, next_obs[:, 1][0][2:2+n_landmarks*2], torch_obs)
+
             else:
-                emps = rewards
+                empowerment = rewards
 
             #emps = np.ones_like(rewards) * estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=mdp.Tn, locations=mdp.configurations) if config.with_empowerment else rewards
 
-            replay_buffer.push(obs, agent_actions, rewards, emps, next_obs, dones)
+            replay_buffer.push(obs, agent_actions, rewards, empowerment, next_obs, dones)
             obs = next_obs
             t += config.n_rollout_threads
             if (len(replay_buffer) >= config.batch_size and
@@ -135,6 +138,8 @@ def run(config):
             os.makedirs(run_dir / 'incremental', exist_ok=True)
             maddpg.save(run_dir / 'incremental' / ('model_ep%i.pt' % (ep_i + 1)))
             maddpg.save(run_dir / 'model.pt')
+
+        #print(f'computation time = {time.time() - start:.3f}s')
 
     maddpg.save(run_dir / 'model.pt')
     env.close()
@@ -177,7 +182,7 @@ if __name__ == '__main__':
                         action='store_true')
     parser.add_argument("--recurrent",
                         action='store_true')
-    parser.add_argument("--with_empowerment",
+    parser.add_argument("--empowerment",
                         action='store_true')
 
     config = parser.parse_args()
