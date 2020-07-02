@@ -19,11 +19,14 @@ def run(config):
         model_path = model_path / 'model.pt'
 
     if config.save_gifs:
-        gif_path = model_path.parent / 'gifs'
+        gif_path = model_path.parent / 'gifs' if not config.mixed_policies else model_path.parent / 'gifs_mixed'
         gif_path.mkdir(exist_ok=True)
     torch.manual_seed(config.seed)
     np.random.seed(config.seed)
-    maddpg = MADDPG.init_from_save(model_path)
+    if config.mixed_policies:
+        maddpg = MADDPG.init_from_directory(Path('./models') / config.env_id / config.model_name)
+    else:
+        maddpg = MADDPG.init_from_save(model_path)
     env = make_env(config.env_id, benchmark=True, discrete_action=maddpg.discrete_action)
     maddpg.prep_rollouts(device='cpu')
     ifi = 1 / config.fps  # inter-frame interval
@@ -69,7 +72,7 @@ def run(config):
     env.close()
 
     if config.save_stats:
-        stats_path = model_path.parent / 'stats'
+        stats_path = model_path.parent / 'stats' if not config.mixed_policies else model_path.parent / 'stats_mixed'
         stats_path.mkdir(exist_ok=True)
         save(f'{stats_path}/all_infos.npy', all_infos)
         save(f'{stats_path}/all_positions.npy', all_positions)
@@ -94,6 +97,7 @@ if __name__ == '__main__':
     parser.add_argument("--n_episodes", default=10, type=int)
     parser.add_argument("--episode_length", default=25, type=int)
     parser.add_argument("--fps", default=30, type=int)
+    parser.add_argument("--mixed_policies", action="store_true")
 
     config = parser.parse_args()
 

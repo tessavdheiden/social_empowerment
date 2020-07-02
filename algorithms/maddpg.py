@@ -284,3 +284,42 @@ class MADDPG(object):
         for a, params in zip(instance.agents, save_dict['agent_params']):
             a.load_params(params)
         return instance
+
+    @classmethod
+    def init_from_directory(cls, directory):
+        import os
+        import numpy as np
+        import copy
+        """
+        Instantiate instance of this class from file created by 'save' method
+        """
+        instances = []
+        for r, d, f in os.walk(directory):
+            for file in f:
+                if file.endswith("model.pt"):
+                    filename = os.path.join(r, file)
+                    save_dict = torch.load(filename)
+                    instance = cls(**save_dict['init_dict'])
+                    instance.init_dict = save_dict['init_dict']
+                    for a, params in zip(instance.agents, save_dict['agent_params']):
+                        a.load_params(params)
+                    instances.append(instance)
+
+        # shuffle the pairs
+        combinations = []
+        for i, curr_ins in enumerate(instances):
+            combination_instance = copy.copy(curr_ins)
+            for j, next_ins in enumerate(instances):
+                if i == j: continue
+                # first agent = agent in current instance
+                for idx, a in enumerate(next_ins.agents):
+                    if idx == 0: continue
+                    combination_instance.agents[idx] = a
+                combinations.append(combination_instance)
+
+        n_instances = len(instances)
+        assert len(combinations) == n_instances * (n_instances-1) != 0
+
+        return np.random.choice(combinations)
+
+

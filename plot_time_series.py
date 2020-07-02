@@ -46,6 +46,7 @@ def plot_snapshots(config):
 
     if config.with_speech:
         ax2 = plt.subplot(grid[2, :])
+        ax2.plot(t, all_infos[config.ep_num, :, 0, 1], c='b')
         ax2.scatter(t, all_infos[config.ep_num, :, 0, 1], c='b')
         ax2.set_ylim(0, 5)
         ax2.set_ylabel('Message')
