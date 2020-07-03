@@ -128,13 +128,7 @@ class MDP(BaseMDP):
         #self.sspa = self._make_sspa(n_landmarks)
 
         # listener's actions
-        self.moves = {
-            "_": np.array([0, 0]),      # STAY
-            "N": np.array([0, 1]),      # UP
-            "S": np.array([0, -1]),     # DOWN
-            "E": np.array([1, 0]),      # RIGHT
-            "W": np.array([-1, 0])      # LEFT
-        } # TODO: reconsider delta x
+        self.moves = np.array([[0, 0], [0, 1], [0, -1], [1, 0], [-1, 0]])     # LEFT # TODO: reconsider delta x
 
         self.messages = np.zeros((n_channels + 1, n_channels))
         for i in range(1, n_channels + 1):
@@ -254,7 +248,7 @@ class MDP(BaseMDP):
         torch_obs = cast(np.concatenate((batch_obs, self.messages), axis=1))
         logits = self.actor.agents[1].policy(torch_obs)
         actions = onehot_from_logits(logits)
-        moves = np.array(list(self.moves.values()))[actions.max(1)[1]]
+        moves = self.moves[actions.max(1)[1]]
         next_land_pos = roff(rep_rows(land_pos.reshape(-1, 2), n_messages) - rep_cols(moves, n_landmarks))
         next_grid_indices = self.get_grid_indices(next_land_pos).reshape(n_messages, n_landmarks)
         assert next_grid_indices.shape[0] == next_land_pos.shape[0]
@@ -263,6 +257,29 @@ class MDP(BaseMDP):
         unique_config = np.unique(next_grid_indices, axis=0)
         assert unique_config.shape[1] == n_landmarks
 
+        return len(unique_config) # TODO: return something which can be used for Blahut
+
+    def get_unique_next_states_speaker(self, obs, next_obs, n_landmarks):
+        cast = lambda x: Variable(torch.Tensor(x), requires_grad=False)
+
+        n_moves = len(self.moves)
+
+        # get positions
+        pos_obs_ag = next_obs[:, 0][0][0:2]
+        pos_obs_target = next_obs[:, 0][0][2:]
+
+        # new positions
+        batch_obs_ag = np.repeat(pos_obs_ag.reshape(1, -1), n_moves, axis=0) + self.moves
+        batch_obs_target = np.repeat(pos_obs_target.reshape(1, -1), n_moves, axis=0)
+        batch_obs = np.concatenate((batch_obs_ag, batch_obs_target), axis=1)
+        torch_obs = cast(batch_obs)
+
+        # messages
+        logits = self.actor.agents[0].policy(torch_obs)
+        messages = onehot_from_logits(logits)
+
+        encoded = messages.max(1)[1]
+        unique_config = np.unique(encoded, axis=0)
         return len(unique_config) # TODO: return something which can be used for Blahut
 
     def get_grid_indices(self, obs):

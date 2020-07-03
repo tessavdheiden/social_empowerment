@@ -100,10 +100,9 @@ def run(config):
 
             if config.empowerment:
                 #T = mdp.get_transition_for_state_batch_implementation(land_p, agent_p)
-                #emps = rewards * estimate_empowerment_from_landmark_positions(mdp.get_idx_from_positions(land_p, agent_p),
-                #                                                               T=T)
-                empowerment = rewards * mdp.get_unique_next_states(obs, next_obs, n_landmarks)
-
+                #emps = rewards * estimate_empowerment_from_landmark_positions(mdp.get_idx_from_positions(land_p, agent_p), T=T)
+                E = mdp.get_unique_next_states_speaker(obs, next_obs, n_landmarks) + mdp.get_unique_next_states(obs, next_obs, n_landmarks)
+                empowerment = rewards * E
             else:
                 empowerment = rewards
 
