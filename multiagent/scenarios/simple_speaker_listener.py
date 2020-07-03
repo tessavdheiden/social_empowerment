@@ -234,17 +234,16 @@ class MDP(BaseMDP):
 
         return T
 
-    def get_unique_next_states(self, p_land, p_agent, obs, next_obs, torch_obs):
+    def get_unique_next_states(self, obs, next_obs, n_landmarks):
         cast = lambda x: Variable(torch.Tensor(x), requires_grad=False)
 
-        n_landmarks = len(p_land)
         n_messages = len(self.messages)
 
         # filter out landmarks
-        land_pos = obs[:, 1][0][2:2 + n_landmarks * 2]
+        land_pos = next_obs[:, 1][0][2:2 + n_landmarks * 2]
 
         # filter out messages
-        pos_obs = obs[:, 1][0][:-self.n_ch]
+        pos_obs = next_obs[:, 1][0][:-self.n_ch]
 
         # create unique configuration of current obs
         # grid_indices = self.get_grid_indices(land_pos)

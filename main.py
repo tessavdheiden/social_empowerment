@@ -99,12 +99,10 @@ def run(config):
             next_obs, rewards, dones, infos = env.step(actions)
 
             if config.empowerment:
-                p_agent, p_land = env.get_positions(), env.get_landmark_positions()
-
                 #T = mdp.get_transition_for_state_batch_implementation(land_p, agent_p)
                 #emps = rewards * estimate_empowerment_from_landmark_positions(mdp.get_idx_from_positions(land_p, agent_p),
                 #                                                               T=T)
-                empowerment = rewards * mdp.get_unique_next_states(p_land.reshape(-1, 2), p_agent.reshape(-1, 2), obs, next_obs[:, 1][0][2:2+n_landmarks*2], torch_obs)
+                empowerment = rewards * mdp.get_unique_next_states(obs, next_obs, n_landmarks)
 
             else:
                 empowerment = rewards
@@ -154,7 +152,7 @@ if __name__ == '__main__':
                         help="Name of directory to store " +
                              "model/training contents")
     parser.add_argument("--seed",
-                        default=3, type=int,
+                        default=1, type=int,
                         help="Random seed")
     parser.add_argument("--n_rollout_threads", default=1, type=int)
     parser.add_argument("--n_training_threads", default=6, type=int)

@@ -8,10 +8,11 @@ import matplotlib.pyplot as plt
 
 
 colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
-                   [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15]])
+                   [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15],
+                   [0.15, 0.15, 0.15], [0.65, 0.65, 0.65]])
 
 
-def load_data(file_path, name, agent_num=1):
+def load_data(file_path, name, agent_num=0):
     cast = lambda x: np.array(x)
     with open(file_path) as json_file:
         data = json.load(json_file)
@@ -26,7 +27,7 @@ def plot_data(y, alg_name, color, ax):
     std = np.std(y.reshape(-1, 10), axis=1)
 
     ax.plot(np.arange(mean.shape[0]), mean, color=color, label=alg_name)
-    ax.fill_between(np.arange(mean.shape[0]), mean - std, mean + std, color=color, alpha=0.1)
+    ax.fill_between(np.arange(mean.shape[0]), mean - std, mean + std, color=color, alpha=0.2)
     ax.grid('on')
     ax.set_xlabel('TrainSteps')
     ax.legend()
