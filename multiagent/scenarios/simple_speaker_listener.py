@@ -101,14 +101,6 @@ from torch.autograd import Variable
 import sys
 np.set_printoptions(threshold=sys.maxsize)
 
-SIZE = 3
-
-cast = lambda x: Variable(torch.Tensor(x).view(1, -1), requires_grad=False)
-if SIZE == 5:
-    roff = lambda x: np.around(x *  2, decimals=0) / 2
-else:
-    roff = lambda x: np.around(x, decimals=0) # TODO: reconsider as function of dim
-
 rep_rows = lambda x, n: np.repeat(np.expand_dims(x, 0), n, 0)
 rep_cols = lambda x, n: np.repeat(np.expand_dims(x, 1), n, 1)
 
@@ -120,15 +112,17 @@ class MDP(BaseMDP):
         self.n_lm = n_landmarks
         self.n_ch = n_channels
         self.dim = 1
-        self.size = SIZE
 
-        self.cell_num = 4
-        self.cell_size = 1
+        self.cell_num = 20
+        self.cell_size = .1
+
+        self.roff = lambda x: np.around(x / self.cell_size) * self.cell_size # TODO: reconsider as function of dim
 
         #self.sspa = self._make_sspa(n_landmarks)
 
         # listener's actions
-        self.moves = np.array([[0, 0], [0, 1], [0, -1], [1, 0], [-1, 0]])     # LEFT # TODO: reconsider delta x
+        self.moves = np.array([[0, 0], [0, .1], [0, -.1], [.1, 0], [-.1, 0],
+                               [0, .05], [0, -.05], [.05, 0], [-.05, 0]]) # STOP, UP, DOWN, RIGHT, LEFT # TODO: reconsider delta x
 
         self.messages = np.zeros((n_channels + 1, n_channels))
         for i in range(1, n_channels + 1):
@@ -139,96 +133,9 @@ class MDP(BaseMDP):
         # experience
         self.D = None
 
-    def _make_sspa(self, n_landmarks):
-        cells = np.linspace(-self.dim, self.dim, self.size)
-        locations = list(itertools.product(cells, repeat=2))
-
-        for _ in range(n_landmarks):
-            locations.append((self.dim+1, self.dim+1))
-        permutations = np.array(list(itertools.product(locations, repeat=n_landmarks)))
-        #permutations = np.array(list(itertools.permutations(locations, n_landmarks)))
-        unique_perm = np.unique(permutations.reshape(-1, n_landmarks*2), axis=0)
-
-        return roff(unique_perm.reshape(-1, n_landmarks, 2))
-
-    def _idx_s_not_in_bounds(self, s):
-        return np.where(np.any(s > self.dim, 1) | np.any(s < -self.dim, 1))[0]
-
-    def propagate_delta_pos(self, s, move):
-        new_state = roff(s - move)
-        new_state[self._idx_s_not_in_bounds(new_state), :] = np.array([self.dim+1, self.dim+1])
-        return new_state
-
-    def _find_idx_from_delta_pos(self, c, sspa):
-        other = sspa.reshape(-1, self.n_lm * 2)
-        return np.argmax(np.all(other == c.flatten(), 1))
-
-    def _delta_landmark_pos(self, p_land, p_agent):
-        delta_pos = p_land - p_agent
-        delta_pos = roff(delta_pos)
-        delta_pos[self._idx_s_not_in_bounds(delta_pos), :] = np.array([self.dim+1, self.dim+1])
-        return delta_pos
-
-    def act(self, s, a):
-        """ get updated state after action
-        s  : listener's relative positions to landmarks
-        a : message of speaker
-        prob : probability of performing action
-        """
-        obs = cast(np.concatenate((np.array([0, 0]), *s, a), axis=0))
-        return self.actor.agents[1].policy(obs)
-
-    def get_transition_for_state(self, p_land, p_agent):
-        delta_pos = np.squeeze(self._delta_landmark_pos(p_land, p_agent))
-        """ Get probabilistic model T[s',a] corresponding to a grid world with 2 agents n landmarks. """
-        # transition function
-        T = np.zeros((len(self.sspa), len(self.messages)))
-        # experience
-        D = T.copy()
-        for i, comm in enumerate(self.messages):
-            logits = self.act(delta_pos, comm)
-            action = onehot_from_logits(logits)
-
-            move = list(self.moves.values())[np.argmax(action)]
-
-            delta_pos_ = self.propagate_delta_pos(delta_pos, move)
-            s_ = self._find_idx_from_delta_pos(delta_pos_, self.sspa)
-            a = np.where(np.all(self.messages == comm, 1))[0]
-            assert i == a
-            D[s_, a] += 1
-            T[:, a] = normalize(D[:, a])
-        return T
-
-    def get_transition_for_state_batch_implementation(self, p_land, p_agent):
-        to_torch = lambda x: Variable(torch.Tensor(x), requires_grad=False)
-        delta_pos = np.squeeze(self._delta_landmark_pos(p_land, p_agent))
-        """ Get probabilistic model T[s',a] corresponding to a grid world with 2 agents n landmarks. """
-        # transition function
-        T = np.zeros((len(self.sspa), len(self.messages)))
-        # experience
-        D = T.copy()
-        n = len(self.messages)
-        obs = np.repeat(np.concatenate((np.array([0, 0]), *delta_pos), axis=0).reshape(1, -1), n, axis=0)
-        obs = to_torch(np.concatenate((obs, self.messages), axis=1))
-        logits = self.actor.agents[1].policy(obs)
-        actions = onehot_from_logits(logits)
-        moves = np.array(list(self.moves.values()))[actions.max(1)[1]]
-
-        new_states = roff(rep_rows(delta_pos, n) - rep_cols(moves, self.n_lm))
-
-        new_states = new_states.reshape(-1, 2)
-        new_states[self._idx_s_not_in_bounds(new_states), :] = np.array([self.dim+1, self.dim+1])
-        new_states = new_states.reshape(n, self.n_lm, 2).reshape(n, self.n_lm * 2)
-        idx = list(map(lambda x: np.where(np.all(self.sspa.reshape(-1, self.n_lm * 2) == x, 1))[0][0], new_states)) # TODO: Can idx be empty?
-        s_ = np.array(idx).reshape(-1)
-        a = np.arange(len(self.messages))
-
-        D[s_, a] += 1
-        T[:, a] = normalize(D[:, a])
-
-        return T
 
     def get_unique_next_states(self, obs, next_obs, n_landmarks):
+
         cast = lambda x: Variable(torch.Tensor(x), requires_grad=False)
 
         n_messages = len(self.messages)
@@ -249,7 +156,9 @@ class MDP(BaseMDP):
         logits = self.actor.agents[1].policy(torch_obs)
         actions = onehot_from_logits(logits)
         moves = self.moves[actions.max(1)[1]]
-        next_land_pos = roff(rep_rows(land_pos.reshape(-1, 2), n_messages) - rep_cols(moves, n_landmarks))
+
+        next_land_pos = rep_rows(land_pos.reshape(-1, 2), n_messages) - rep_cols(moves, n_landmarks)
+
         next_grid_indices = self.get_grid_indices(next_land_pos).reshape(n_messages, n_landmarks)
         assert next_grid_indices.shape[0] == next_land_pos.shape[0]
 

@@ -17,14 +17,14 @@ def load_data(file_path, name, agent_num=0):
     with open(file_path) as json_file:
         data = json.load(json_file)
         for key, value in data.items():
-            if key.split('/')[-1] == name and int(key.split('/')[-3][-1]) == agent_num:
+            if key.split('/')[-1] == name:# and int(key.split('/')[-3][-1]) == agent_num:
                 d = cast(value)
                 return d[:, 2]
 
 
 def plot_data(y, alg_name, color, ax):
-    mean = np.mean(y.reshape(-1, 10), axis=1)
-    std = np.std(y.reshape(-1, 10), axis=1)
+    mean = np.mean(y.reshape(-1, 500), axis=1)
+    std = np.std(y.reshape(-1, 500), axis=1)
 
     ax.plot(np.arange(mean.shape[0]), mean, color=color, label=alg_name)
     ax.fill_between(np.arange(mean.shape[0]), mean - std, mean + std, color=color, alpha=0.2)
@@ -43,7 +43,7 @@ def plot_training_curve(config):
         for file in f:
             if file.endswith(".json"):
                 file_path = os.path.join(r, file)
-                y1 = load_data(file_path, name='pol_loss')
+                y1 = load_data(file_path, name='rew_loss')
                 plot_data(y1,  alg_name=r.split('/')[2], color=colors[n_files], ax=ax[0])
                 n_files += 1
 
@@ -51,6 +51,7 @@ def plot_training_curve(config):
     ax[1].set_title('Non-StationaryAgent AvarageReturn', fontsize=11)
 
     plt.tight_layout()
+    plt.show()
     plt.savefig(model_path / 'learning_curve.png')
 
 
