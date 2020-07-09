@@ -290,6 +290,8 @@ class MADDPG(object):
         import os
         import numpy as np
         import copy
+        import itertools
+        import random
         """
         Instantiate instance of this class from file created by 'save' method
         """
@@ -298,6 +300,7 @@ class MADDPG(object):
             for file in f:
                 if file.endswith("model.pt"):
                     filename = os.path.join(r, file)
+                    print(f'loaded {filename}')
                     save_dict = torch.load(filename)
                     instance = cls(**save_dict['init_dict'])
                     instance.init_dict = save_dict['init_dict']
@@ -305,21 +308,17 @@ class MADDPG(object):
                         a.load_params(params)
                     instances.append(instance)
 
-        # shuffle the pairs
-        combinations = []
-        for i, curr_ins in enumerate(instances):
-            combination_instance = copy.copy(curr_ins)
-            for j, next_ins in enumerate(instances):
-                if i == j: continue
-                # first agent = agent in current instance
-                for idx, a in enumerate(next_ins.agents):
-                    if idx == 0: continue
-                    combination_instance.agents[idx] = a
-                combinations.append(combination_instance)
+        n_agents = instances[0].nagents
+        if n_agents == len(instances):
+            combinations = list(itertools.combinations(instances, n_agents))
+        else:
+            combinations = list(itertools.combinations_with_replacement(instances, n_agents))
 
-        n_instances = len(instances)
-        assert len(combinations) == n_instances * (n_instances-1) != 0
+        comb = random.choice(combinations)
+        copy_instance = copy.copy(instances[0])
+        for i, agent in enumerate(copy_instance.agents):
+            copy_instance.agents[i] = comb[i].agents[i]
+        return  copy_instance
 
-        return np.random.choice(combinations)
 
 
