@@ -3,6 +3,10 @@ from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
 
 
+colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
+                   [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15]])
+
+
 class Scenario(BaseScenario):
     def make_world(self):
         world = World()
@@ -31,7 +35,7 @@ class Scenario(BaseScenario):
     def reset_world(self, world):
         # random properties for agents
         for i, agent in enumerate(world.agents):
-            agent.color = np.array([0.35, 0.35, 0.85])
+            agent.color = colors[i]
         # random properties for landmarks
         for i, landmark in enumerate(world.landmarks):
             landmark.color = np.array([0.25, 0.25, 0.25])
@@ -100,6 +104,8 @@ class Scenario(BaseScenario):
         return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + comm)
 
 
+import torch
+from torch.autograd import Variable
 from multiagent.scenarios.mdp import BaseMDP
 from multiagent.scenarios.transition_utils import switch_places, _location_to_index, _index_to_cell, _cell_to_index, vecmod
 import itertools
@@ -108,6 +114,8 @@ from functools import reduce
 
 class MDP(BaseMDP):
     def __init__(self, n_agents, dims, n_step):
+        self.cell_num = 8
+        self.cell_size = .5
 
         self.configurations = np.array(list(itertools.permutations(np.arange(dims[0] * dims[1]), n_agents)))
         self.actions = {
@@ -117,9 +125,12 @@ class MDP(BaseMDP):
             "W": np.array([0, -1]),     # LEFT
             "_": np.array([0, 0])       # STAY
         }
+        self.moves = np.array([[0, 0], [0, .1], [0, -.1], [.1, 0], [-.1, 0],
+                               [0, .05], [0, -.05], [.05, 0], [-.05, 0]])
 
-        self.T = self.compute_transition(n_agents=n_agents, dims=dims, locations=self.configurations)
-        self.Tn = self.compute_transition_nstep(T=self.T, n_step=n_step)
+        #self.T = self.compute_transition(n_agents=n_agents, dims=dims, locations=self.configurations)
+        #self.Tn = self.compute_transition_nstep(T=self.T, n_step=n_step)
+        self.not_in_collision = lambda x: (len(x) == len(np.unique(x))) & np.all(x != 'inf') & np.all(x != '-inf')
 
     def act(self, s, a, dims, prob=1., toroidal=False):
         """ get updated state after action
@@ -180,3 +191,44 @@ class MDP(BaseMDP):
         for i, an in enumerate(nstep_actions):
             Bn[:, i, :] = reduce((lambda x, y: np.dot(y, x)), map((lambda a: T[:, a, :]), an))
         return Bn
+
+    def get_unique_next_states(self, obs, next_obs, n_landmarks):
+        cast = lambda x: Variable(torch.Tensor(x), requires_grad=False)
+
+        n_moves = len(self.moves)
+
+        # get positions
+        pos_obs_ag = next_obs[0, :, 2:2+2]
+        #pos_obs_target = next_obs[0][:][4:4+2*n_landmarks]
+
+        # new positions
+        batch_obs_ag = np.repeat(pos_obs_ag.reshape(1, n_landmarks, 2), n_moves, axis=0) + np.repeat(self.moves.reshape(n_moves, 1, 2), n_landmarks, axis=1)
+        #batch_obs_target = np.repeat(pos_obs_target.reshape(1, n_landmarks, 2), n_moves, axis=0) + np.repeat(self.moves.reshape(n_moves, 1, 2), n_landmarks, axis=1)
+        #batch_obs = np.concatenate((batch_obs_ag, batch_obs_target), axis=1)
+        #torch_obs = cast(batch_obs)
+
+        # messages
+        #logits = self.actor.agents[0].policy(torch_obs)
+        #messages = onehot_from_logits(logits)
+
+        #encoded = messages.max(1)[1]
+        encoded = self.get_grid_indices(batch_obs_ag)
+        unique_config = np.unique(encoded.reshape(n_moves, n_landmarks), axis=0)
+        new_unique_config = unique_config[np.apply_along_axis(self.not_in_collision, 1, unique_config)]
+        # if len(unique_config)>len(new_unique_config):
+        #     print(unique_config)
+        #     print(new_unique_config)
+
+        return len(new_unique_config) # TODO: return something which can be used for Blahut
+
+    def get_grid_indices(self, obs):
+        p_land = obs.reshape(-1, 2)
+        other_px, other_py = p_land[:, 0], p_land[:, 1]
+        other_x_index = np.floor(other_px / self.cell_size + self.cell_num / 2)
+        other_y_index = np.floor(other_py / self.cell_size + self.cell_num / 2)
+        other_x_index[other_x_index < 0] = float('-inf')
+        other_x_index[other_x_index >= self.cell_num] = float('-inf')
+        other_y_index[other_y_index < 0] = float('-inf')
+        other_y_index[other_y_index >= self.cell_num] = float('-inf')
+        grid_indices = self.cell_num * other_y_index + other_x_index
+        return grid_indices

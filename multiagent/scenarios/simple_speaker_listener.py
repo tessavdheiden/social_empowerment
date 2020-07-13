@@ -146,10 +146,6 @@ class MDP(BaseMDP):
         # filter out messages
         pos_obs = next_obs[:, 1][0][:-self.n_ch]
 
-        # create unique configuration of current obs
-        # grid_indices = self.get_grid_indices(land_pos)
-        # occupancy_map = np.isin(range(self.cell_num ** 2), grid_indices)
-
         # create future configuratins
         batch_obs = np.repeat(pos_obs.reshape(1, -1), n_messages, axis=0)
         torch_obs = cast(np.concatenate((batch_obs, self.messages), axis=1))
