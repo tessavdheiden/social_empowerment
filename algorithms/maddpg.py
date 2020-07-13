@@ -107,10 +107,7 @@ class MADDPG(object):
             trgt_vf_in = torch.cat((*next_obs, *all_trgt_acs), dim=1)
         else:  # DDPG
             if self.discrete_action:
-                trgt_vf_in = torch.cat((next_obs[agent_i],
-                                        onehot_from_logits(
-                                            curr_agent.target_policy(
-                                                next_obs[agent_i]))),
+                trgt_vf_in = torch.cat((next_obs[agent_i],onehot_from_logits(curr_agent.target_policy(next_obs[agent_i]))),
                                        dim=1)
             else:
                 trgt_vf_in = torch.cat((next_obs[agent_i],
