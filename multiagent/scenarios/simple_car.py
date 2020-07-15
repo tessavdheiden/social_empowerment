@@ -31,6 +31,7 @@ class Scenario(BaseScenario):
         world.collaborative = True
         road = CarRacing()
         world.track = road.track
+
         world.physics = road.physics
         world.viewer = road.viewer
         world.viewer.close()
@@ -39,7 +40,7 @@ class Scenario(BaseScenario):
         world.close_race = road.close
 
         # add agents
-        self.num_agents = 3
+        self.num_agents = 1
         world.agents = [DynamicAgent() for i in range(self.num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
@@ -57,6 +58,9 @@ class Scenario(BaseScenario):
             landmark.movable = False
             landmark.size = 0.01
         # make initial conditions
+        self.arc_lengths = None
+        world.road = None
+
         self.reset_world(world)
         return world
 
@@ -121,24 +125,31 @@ class Scenario(BaseScenario):
         return np.array([x_new, y_new])
 
     def reset_world(self, world):
-        angle, x, y = world.track[0][1:4]
-        start_pos = world.track[0][2:4]
-        # random properties for agents
-        for i, agent in enumerate(world.agents):
-            agent.color = colors[i]
-            agent.action_callback = None
-            agent.body.make(angle, x, y, world.physics, agent.color)
-            agent.state.p_pos = self.normalize_position(world.track, start_pos) + np.random.uniform(-.1,+.1, world.dim_p)
-            agent.state.p_vel = np.zeros(world.dim_p)
-            #plt.scatter(agent.state.p_pos[0], agent.state.p_pos[1], color='r', s=100)
+        world.road = np.array([self.normalize_position(world.track, pos) for pos in world.track[:, 2:4]])
 
+        #angle, x, y = world.track[0][1:4]
+        #start_pos = world.track[0][2:4]
+        # random properties for agents
         for i, landmark in enumerate(world.landmarks):
             landmark.color = np.array([0.75, 0.75, 0.75])
-            idx = len(world.track) // len(world.landmarks) * i
+            idx = np.minimum(int(len(world.track) / len(world.landmarks) * i), len(world.track) - 1)
             pos = world.track[idx, 2:4]
             landmark.state.p_pos = self.normalize_position(world.track, pos)
             landmark.state.p_vel = np.zeros(world.dim_p)
             #plt.scatter(landmark.state.p_pos[0], landmark.state.p_pos[1], color='b')
+
+        self.arc_lengths = np.linalg.norm(world.road - np.roll(world.road, -1, axis=0), axis=1)
+        world.landmarks[0].color = np.array([0.75, 0.15, 0.15])
+        world.landmarks[-1].color = np.array([0.15, 0.75, 0.15])
+
+        for i, agent in enumerate(world.agents):
+            agent.color = colors[i]
+            agent.action_callback = None
+            #agent.body.make(angle, x, y, world.physics, agent.color)
+            agent.state.p_pos = world.landmarks[2].state.p_pos + np.random.uniform(-.1,+.1, world.dim_p)
+            agent.state.p_vel = np.zeros(world.dim_p)
+            #plt.scatter(agent.state.p_pos[0], agent.state.p_pos[1], color='r', s=100)
+
         #plt.savefig('track.png')
         #self.manual_control(world)
 
@@ -148,12 +159,68 @@ class Scenario(BaseScenario):
         dist_min = agent1.size + agent2.size
         return True if dist < dist_min else False
 
+    def lat_dist(self, agent, world):
+        def dist(p1, p2, p3):
+            return np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)
+
+        dists = np.linalg.norm(agent.state.p_pos - world.road, axis=1)
+        i = np.argmin(dists, axis=0)
+        p3 = agent.state.p_pos
+        if (i < len(dists) - 1) & (i > 0):
+            p1 = world.road[i+1]
+            p2 = world.road[i-1]
+        elif i == 0:
+            p1 = world.road[1]
+            p2 = world.road[-1]
+        else:
+            p1 = world.road[0]
+            p2 = world.road[-2]
+        # plt.scatter(p1[0], p1[1], c='r')
+        # plt.scatter(p2[0], p2[1], c='g')
+        # plt.scatter(p3[0], p3[1], c='b')
+
+        return dist(p1, p2, p3)
+
+    def backwards(self, agent, world):
+        def angle(vector_1, vector_2):
+            unit_vector_1 = vector_1 / np.linalg.norm(vector_1)
+            unit_vector_2 = vector_2 / np.linalg.norm(vector_2)
+            dot_product = np.dot(unit_vector_1, unit_vector_2)
+            return np.arccos(dot_product)
+
+        dists = np.linalg.norm(agent.state.p_pos - world.road, axis=1)
+        i = np.argmin(dists, axis=0)
+
+        if (i < len(dists) - 1) & (i > 0):
+            p1 = world.road[i + 1]
+            p2 = world.road[i - 1]
+        elif i == 0:
+            p1 = world.road[1]
+            p2 = world.road[-1]
+        else:
+            p1 = world.road[0]
+            p2 = world.road[-2]
+        angle = angle(agent.state.p_vel, p2 - p1)
+
+        return angle < np.pi / 2
+
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
-        rew = 0
-        dists = [np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))) for l in world.landmarks]
+        rew = 0.
+
+        # move from start to end
+        dists = np.linalg.norm(agent.state.p_pos - world.road, axis=1)
         i = np.argmin(dists, axis=0)
-        rew -= dists[(i + 1) % len(world.landmarks)]
+        rew -= sum(self.arc_lengths[i:])
+
+        # stay on road
+        if self.lat_dist(agent, world) > .01:
+            rew -= 1.
+
+        # moving backwards
+        if self.backwards(agent, world):
+            rew -= 1.
+
         # if agent.collide:
         #     for a in world.agents:
         #         if self.is_collision(a, agent):
