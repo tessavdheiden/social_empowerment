@@ -78,6 +78,12 @@ class Agent(Entity):
         # script behavior to execute
         self.action_callback = None
 
+class Surface(Entity):
+    def __init__(self):
+        super(Surface, self).__init__()
+        self.v = []
+
+
 # multi-agent world
 class World(object):
     def __init__(self):
@@ -85,6 +91,7 @@ class World(object):
         self.agents = []
         self.landmarks = []
         self.obstacles = []
+        self.surfaces = []
         # communication channel dimensionality
         self.dim_c = 0
         # position dimensionality
@@ -102,7 +109,7 @@ class World(object):
     # return all entities in the world
     @property
     def entities(self):
-        return self.agents + self.landmarks + self.obstacles
+        return self.agents + self.landmarks + self.surfaces + self.obstacles
 
     # return all agents controllable by external policies
     @property
@@ -116,7 +123,7 @@ class World(object):
 
     # update state of the world
     def step(self):
-        # set actions for scripted agents 
+        # set actions for scripted agents
         for agent in self.scripted_agents:
             agent.action = agent.action_callback(agent, self)
         # gather forces applied to entities
@@ -137,7 +144,7 @@ class World(object):
         for i,agent in enumerate(self.agents):
             if agent.movable:
                 noise = np.random.randn(*agent.action.u.shape) * agent.u_noise if agent.u_noise else 0.0
-                p_force[i] = agent.action.u + noise                
+                p_force[i] = agent.action.u + noise
         return p_force
 
     # gather physical forces acting on entities
@@ -149,10 +156,10 @@ class World(object):
                 [f_a, f_b] = self.get_collision_force(entity_a, entity_b)
                 if(f_a is not None):
                     if(p_force[a] is None): p_force[a] = 0.0
-                    p_force[a] = f_a + p_force[a] 
+                    p_force[a] = f_a + p_force[a]
                 if(f_b is not None):
                     if(p_force[b] is None): p_force[b] = 0.0
-                    p_force[b] = f_b + p_force[b]        
+                    p_force[b] = f_b + p_force[b]
         return p_force
 
     # integrate physical state
@@ -175,7 +182,7 @@ class World(object):
             agent.state.c = np.zeros(self.dim_c)
         else:
             noise = np.random.randn(*agent.action.c.shape) * agent.c_noise if agent.c_noise else 0.0
-            agent.state.c = agent.action.c + noise      
+            agent.state.c = agent.action.c + noise
 
     # get collision forces for any contact between two entities
     def get_collision_force(self, entity_a, entity_b):
@@ -195,3 +202,25 @@ class World(object):
         force_a = +force if entity_a.movable else None
         force_b = -force if entity_b.movable else None
         return [force_a, force_b]
+    # update state of the world
+    # def step(self):
+    #     # set actions for scripted agents
+    #     for agent in self.scripted_agents:
+    #         agent.action = agent.action_callback(agent, self)
+    #     # gather forces applied to entities
+    #     p_force = [None] * len(self.entities)
+    #     # apply agent physical controls
+    #     p_force = self.apply_action_force(p_force)
+    #     # apply environment forces
+    #     p_force = self.apply_environment_force(p_force)
+    #     # integrate physical state
+    #     self.integrate_state(p_force)
+    #     # update agent state
+    #
+    #     physical_bodies = transform(self.agents)
+    #     physical_world = transform(self)
+    #
+    #     (updated_bodies, updated_world) = self.physic_engine.update(physical_bodies, physical_world)
+    #
+    #     self.update_agents(updated_bodies)
+    #     self.update_world(updated_world)
