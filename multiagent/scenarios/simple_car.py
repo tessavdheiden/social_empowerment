@@ -3,8 +3,7 @@ from multiagent.core import World, Agent, Landmark, AgentState, Action, Surface
 from multiagent.scenario import BaseScenario
 from multiagent.scenarios.car_dynamics import Car
 from multiagent.scenarios.cars_racing import CarRacing, FrictionDetector
-from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revoluteJointDef, contactListener)
-import Box2D
+import scipy.ndimage
 
 
 colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
@@ -23,30 +22,7 @@ class RoadWorld(World):
         super(RoadWorld, self).__init__()
         self.track = None
         self.physics = None
-
-    # update state of the world
-    def step(self):
-        # set actions for scripted agents
-        for agent in self.scripted_agents:
-            agent.action = agent.action_callback(agent, self)
-        # gather forces applied to entities
-        p_force = [None] * len(self.entities)
-        # apply agent physical controls
-        p_force = self.apply_action_force(p_force)
-        # apply environment forces
-        p_force = self.apply_environment_force(p_force)
-        # integrate physical state
-        self.integrate_state(p_force)
-        # update agent state
-    #
-    #     physical_bodies = transform(self.agents)
-    #     physical_world = transform(self)
-    #
-    #     (updated_bodies, updated_world) = self.physic_engine.update(physical_bodies, physical_world)
-    #
-    #     self.update_agents(updated_bodies)
-    #     self.update_world(updated_world)
-
+        self.top_view = None
 
 
 class Scenario(BaseScenario):
@@ -55,7 +31,7 @@ class Scenario(BaseScenario):
         # set any world properties first
         world.dim_p = 2 # x, y, orientation, speed
         world.collaborative = True
-        road = CarRacing()
+        road = CarRacing(seed=2) # TODO: remove seed and reset track in self.reset_world
         world.road = road
 
         # add agents
@@ -66,10 +42,10 @@ class Scenario(BaseScenario):
             agent.collide = True
             agent.silent = True
             agent.body = Car()
-            agent.size = 0.01
+            agent.size = 0.1
 
         # add landmarks
-        num_land = 20
+        num_land = 6
         world.landmarks = [Landmark() for i in range(num_land)]
         for i, landmark in enumerate(world.landmarks):
             landmark.name = 'landmark %d' % i
@@ -85,6 +61,8 @@ class Scenario(BaseScenario):
 
         # make initial conditions
         self.arc_lengths = None
+        world.top_view = road.render
+        world.road.reset()
         self.reset_world(world)
         return world
 
@@ -98,24 +76,26 @@ class Scenario(BaseScenario):
         return np.array([x_new, y_new])
 
     def reset_world(self, world):
-        world.road.reset()
-
         track = np.array(world.road.track)[:, 2:4]
         normalized_track = np.array([self.scale_track(track, location) for location in track])
 
         # random properties for agents
         for i, landmark in enumerate(world.landmarks):
-            landmark.color = np.array([0.15, 0.15, 0.15])
+            landmark.color = colors[i]
             idx = np.minimum(int(len(normalized_track) / len(world.landmarks) * i), len(normalized_track) - 1)
             landmark.state.p_pos = normalized_track[idx]
             landmark.state.p_vel = np.zeros(world.dim_p)
 
-        self.arc_lengths = np.linalg.norm(normalized_track - np.roll(normalized_track, -1, axis=0), axis=1)
+        # want listener to go to the goal landmark
+        world.agents[0].goal = world.landmarks[-1]
+        world.agents[0].goals = np.zeros(len(world.landmarks))
+
+        #self.arc_lengths = np.linalg.norm(normalized_track - np.roll(normalized_track, -1, axis=0), axis=1)
 
         for i, agent in enumerate(world.agents):
             agent.color = colors[i]
             agent.action_callback = None
-            agent.state.p_pos = world.landmarks[2].state.p_pos + np.random.uniform(-.1,+.1, world.dim_p)
+            agent.state.p_pos = world.landmarks[0].state.p_pos + np.random.uniform(-.1,+.1, world.dim_p)
             agent.state.p_vel = np.zeros(world.dim_p)
 
         for i, surface in enumerate(world.surfaces):
@@ -173,42 +153,60 @@ class Scenario(BaseScenario):
 
         return angle < np.pi / 2
 
+    def outside_boundary(self, agent):
+        if agent.state.p_pos[0] > 1 or agent.state.p_pos[0] < -1 or agent.state.p_pos[1] > 1 or agent.state.p_pos[1] < -1:
+            return True
+        else:
+            return False
+
     def reward(self, agent, world):
-        # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
-        rew = 0.
-
-        # move from start to end
-        # dists = np.linalg.norm(agent.state.p_pos - world.surfaces[0].v, axis=1)
-        # i = np.argmin(dists, axis=0)
-        # rew -= sum(self.arc_lengths[i:])
-
-        if np.all(np.abs(agent.state.p_vel) < .2):
-            rew -= 1.
-
-        # stay on road
-        if self.lat_dist(agent, world) > .01:
-           rew -= 1.
-
-        # moving backwards
-        if self.backwards(agent, world):
-            rew -= 1.
+        rew = -1 if self.outside_boundary(agent) else 0
+        # squared distance from listener to landmark
+        rew -= np.sum(np.square(agent.state.p_pos - agent.goal.state.p_pos))
         return rew
+        # img_rgb = world.top_view(mode="state_pixels")
+        # # green penalty
+        # if np.mean(img_rgb[:, :, 1]) > 185.0:
+        #     rew -= 0.05
+
+    @staticmethod
+    def rgb2gray(rgb, norm=True, scale_factor=2):
+        # rgb image -> gray [0, 1]
+        gray = np.dot(rgb[..., :], [0.299, 0.587, 0.114])
+        if norm:
+            # normalize
+            gray = gray / 128. - 1.
+        if scale_factor > 1:
+            gray = gray[::scale_factor, ::scale_factor]
+
+        return gray
 
     def observation(self, agent, world):
+        #return self.rgb2gray(world.top_view(mode="state_pixels")).reshape(-1)
+
+        # goal color
+        goal_color = np.zeros(world.dim_color)
+        if agent.goal is not None:
+            goal_color = np.array([int(''.join(x for x in agent.goal.name if x.isdigit()))])
+
         # get positions of all entities in this agent's reference frame
         entity_pos = []
-        for entity in world.landmarks:  # world.entities:
+        for entity in world.landmarks:
             entity_pos.append(entity.state.p_pos - agent.state.p_pos)
-        # entity colors
-        entity_color = []
-        for entity in world.landmarks:  # world.entities:
-            entity_color.append(entity.color)
-        # communication of all other agents
-        other_pos = []
-        for other in world.agents:
-            if other is agent: continue
-            other_pos.append(other.state.p_pos - agent.state.p_pos)
-        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos)
+
+        return np.concatenate([agent.state.p_vel] + entity_pos + [goal_color])
+
+    def done(self, agent, world):
+        if np.all(agent.goals):
+            return True
+
+        # define new target if target reached
+        # if self.is_collision(agent, agent.goal):
+        #     idx = int(''.join(x for x in agent.goal.name if x.isdigit()))
+        #     agent.goals[idx] = True
+        #     agent.goal = world.landmarks[idx+1]
+
+        return False # self.lat_dist(agent, world) > .01
 
     def benchmark_data(self, agent, world):
         return (self.reward(agent, world), )

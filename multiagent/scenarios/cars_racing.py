@@ -101,9 +101,9 @@ class CarRacing(gym.Env, EzPickle):
         'video.frames_per_second' : FPS
     }
 
-    def __init__(self, verbose=1):
+    def __init__(self, verbose=1, seed=None):
         EzPickle.__init__(self)
-        self.seed()
+        self.seed(seed) if seed else self.seed()
         self.contactListener_keepref = FrictionDetector(self)
         self.world = Box2D.b2World((0,0), contactListener=self.contactListener_keepref)
         self.viewer = None
@@ -345,7 +345,8 @@ class CarRacing(gym.Env, EzPickle):
 
         if "t" not in self.__dict__: return  # reset() not called yet
 
-        zoom = 0.1*SCALE*max(1-self.t, 0) + ZOOM*SCALE*min(self.t, 1)   # Animate zoom first second
+        #zoom = 0.1*SCALE*max(1-self.t, 0) + ZOOM*SCALE*min(self.t, 1)   # Animate zoom first second
+        zoom = 0.1 * SCALE * 0 + ZOOM * SCALE * 1  # Animate zoom first second
         scroll_x = self.car.hull.position[0]
         scroll_y = self.car.hull.position[1]
         angle = -self.car.hull.angle
