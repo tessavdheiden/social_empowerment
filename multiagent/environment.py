@@ -228,10 +228,12 @@ class MultiAgentEnv(gym.Env):
             self.render_geoms = []
             self.render_geoms_xform = []
             for entity in self.world.entities:
-                geom = rendering.make_circle(entity.size)
+                geom = rendering.make_circle(entity.size) if 'surface' not in entity.name else rendering.make_polygon_with_hole(entity.poly)
                 xform = rendering.Transform()
                 if 'agent' in entity.name:
-                    geom.set_color(*entity.color, alpha=0.5)
+                    geom.set_color(*entity.color)
+                elif 'surface' in entity.name:
+                    geom.set_color(entity.color)
                 else:
                     geom.set_color(*entity.color)
                 geom.add_attr(xform)

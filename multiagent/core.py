@@ -202,25 +202,4 @@ class World(object):
         force_a = +force if entity_a.movable else None
         force_b = -force if entity_b.movable else None
         return [force_a, force_b]
-    # update state of the world
-    # def step(self):
-    #     # set actions for scripted agents
-    #     for agent in self.scripted_agents:
-    #         agent.action = agent.action_callback(agent, self)
-    #     # gather forces applied to entities
-    #     p_force = [None] * len(self.entities)
-    #     # apply agent physical controls
-    #     p_force = self.apply_action_force(p_force)
-    #     # apply environment forces
-    #     p_force = self.apply_environment_force(p_force)
-    #     # integrate physical state
-    #     self.integrate_state(p_force)
-    #     # update agent state
-    #
-    #     physical_bodies = transform(self.agents)
-    #     physical_world = transform(self)
-    #
-    #     (updated_bodies, updated_world) = self.physic_engine.update(physical_bodies, physical_world)
-    #
-    #     self.update_agents(updated_bodies)
-    #     self.update_world(updated_world)
+

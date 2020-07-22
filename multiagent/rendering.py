@@ -231,6 +231,44 @@ class FilledPolygon(Geom):
             glVertex3f(p[0], p[1],0)  # draw each vertex
         glEnd()
 
+class FilledPolygonWithHole(Geom):
+    def __init__(self, poly):
+        Geom.__init__(self)
+        self.poly = poly
+
+    def set_color(self, colors):
+        self.colors = colors
+
+    def render_background(self):
+        glColor4f(0.4, 0.8, 0.4, 1.0)
+        glVertex3f(-1, +1, 0)
+        glVertex3f(+1, +1, 0)
+        glVertex3f(+1, -1, 0)
+        glVertex3f(-1, -1, 0)
+
+        glColor4f(0.4, 0.9, 0.4, 1.0)
+        k = 2/20.0
+        for x in range(-20, 20, 2):
+            for y in range(-20, 20, 2):
+                glVertex3f(k*x + k, k*y + 0, 0)
+                glVertex3f(k*x + 0, k*y + 0, 0)
+                glVertex3f(k*x + 0, k*y + k, 0)
+                glVertex3f(k*x + k, k*y + k, 0)
+
+    def render1(self):
+        glBegin(GL_QUADS)
+        self.render_background()
+
+        #color = (self._color.vec4[0] * 0.5, self._color.vec4[1] * 0.5, self._color.vec4[2] * 0.5, self._color.vec4[3] * 0.5)
+        #glColor4f(*color)
+        for poly, color in zip(self.poly, self.colors):
+            glColor4f(color[0], color[1], color[2], 1)
+            for p in poly:
+                glVertex3f(p[0], p[1],0)  # draw each vertex
+        glEnd()
+
+
+
 def make_circle(radius=10, res=30, filled=True):
     points = []
     for i in range(res):
@@ -244,6 +282,9 @@ def make_circle(radius=10, res=30, filled=True):
 def make_polygon(v, filled=True):
     if filled: return FilledPolygon(v)
     else: return PolyLine(v, True)
+
+def make_polygon_with_hole(v):
+    return FilledPolygonWithHole(v)
 
 def make_polyline(v):
     return PolyLine(v, False)

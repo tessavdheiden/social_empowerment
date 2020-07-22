@@ -10,17 +10,43 @@ import Box2D
 colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
                    [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15]])
 
+
 import matplotlib.pyplot as plt
 class DynamicAgent(Agent):
     def __init__(self):
         super(DynamicAgent, self).__init__()
         self.body = None
 
+
 class RoadWorld(World):
     def __init__(self):
         super(RoadWorld, self).__init__()
         self.track = None
         self.physics = None
+
+    # update state of the world
+    def step(self):
+        # set actions for scripted agents
+        for agent in self.scripted_agents:
+            agent.action = agent.action_callback(agent, self)
+        # gather forces applied to entities
+        p_force = [None] * len(self.entities)
+        # apply agent physical controls
+        p_force = self.apply_action_force(p_force)
+        # apply environment forces
+        p_force = self.apply_environment_force(p_force)
+        # integrate physical state
+        self.integrate_state(p_force)
+        # update agent state
+    #
+    #     physical_bodies = transform(self.agents)
+    #     physical_world = transform(self)
+    #
+    #     (updated_bodies, updated_world) = self.physic_engine.update(physical_bodies, physical_world)
+    #
+    #     self.update_agents(updated_bodies)
+    #     self.update_world(updated_world)
+
 
 
 class Scenario(BaseScenario):
@@ -40,7 +66,7 @@ class Scenario(BaseScenario):
             agent.collide = True
             agent.silent = True
             agent.body = Car()
-            agent.size = 0.01
+            agent.size = 0.1
 
         # add landmarks
         num_land = 20
@@ -62,28 +88,29 @@ class Scenario(BaseScenario):
         self.reset_world(world)
         return world
 
-    def normalize_position(self, track, pos):
+    def scale_track(self, track, pos):
         x, y = pos
         track_width = abs(max(track[:, 0]) - min(track[:, 0]))
         track_height = abs(max(track[:, 1]) - min(track[:, 1]))
-        x_new = (x - min(track[:, 0])) / track_width - .5
-        y_new = (y - min(track[:, 1])) / track_height - .5
+        scale = max(track_height, track_width)
+        x_new = (x - min(track[:, 0])) / scale - .5
+        y_new = (y - min(track[:, 1])) / scale - .5
         return np.array([x_new, y_new])
 
     def reset_world(self, world):
         world.road.reset()
 
         track = np.array(world.road.track)[:, 2:4]
-        track = np.array([self.normalize_position(track, location) for location in track])
+        normalized_track = np.array([self.scale_track(track, location) for location in track])
 
         # random properties for agents
         for i, landmark in enumerate(world.landmarks):
             landmark.color = np.array([0.95, 0.95, 0.95])
-            idx = np.minimum(int(len(track) / len(world.landmarks) * i), len(track) - 1)
-            landmark.state.p_pos = track[idx]
+            idx = np.minimum(int(len(normalized_track) / len(world.landmarks) * i), len(normalized_track) - 1)
+            landmark.state.p_pos = normalized_track[idx]
             landmark.state.p_vel = np.zeros(world.dim_p)
 
-        self.arc_lengths = np.linalg.norm(track - np.roll(track, -1, axis=0), axis=1)
+        self.arc_lengths = np.linalg.norm(normalized_track - np.roll(normalized_track, -1, axis=0), axis=1)
 
         for i, agent in enumerate(world.agents):
             agent.color = colors[i]
@@ -92,11 +119,11 @@ class Scenario(BaseScenario):
             agent.state.p_vel = np.zeros(world.dim_p)
 
         for i, surface in enumerate(world.surfaces):
-            surface.color = np.array([0.75, 0.15, 0.15])
+            surface.color = np.array([c for (_, c) in world.road.road_poly])
             surface.state.p_pos = np.zeros(world.dim_p)
             surface.state.p_vel = np.zeros(world.dim_p)
             surface.v = track
-
+            surface.poly = np.array([[self.scale_track(track, p) for p in ps] for (ps, _) in world.road.road_poly])
 
     def is_collision(self, agent1, agent2):
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
@@ -160,7 +187,7 @@ class Scenario(BaseScenario):
 
         # stay on road
         if self.lat_dist(agent, world) > .01:
-            rew -= 1.
+           rew -= 1.
 
         # moving backwards
         if self.backwards(agent, world):
