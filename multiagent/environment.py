@@ -231,7 +231,7 @@ class MultiAgentEnv(gym.Env):
                 geom = rendering.make_circle(entity.size) if 'surface' not in entity.name else rendering.make_polygon_with_hole(entity.poly)
                 xform = rendering.Transform()
                 if 'agent' in entity.name:
-                    geom.set_color(*entity.color)
+                    geom.set_color(*entity.color, alpha=0.5)
                 elif 'surface' in entity.name:
                     geom.set_color(entity.color)
                 else:

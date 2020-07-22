@@ -109,7 +109,7 @@ class World(object):
     # return all entities in the world
     @property
     def entities(self):
-        return self.agents + self.landmarks + self.surfaces + self.obstacles
+        return self.agents + self.surfaces + self.landmarks + self.obstacles
 
     # return all agents controllable by external policies
     @property

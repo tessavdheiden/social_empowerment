@@ -240,6 +240,7 @@ class FilledPolygonWithHole(Geom):
         self.colors = colors
 
     def render_background(self):
+        glBegin(GL_QUADS)
         glColor4f(0.4, 0.8, 0.4, 1.0)
         glVertex3f(-1, +1, 0)
         glVertex3f(+1, +1, 0)
@@ -254,19 +255,17 @@ class FilledPolygonWithHole(Geom):
                 glVertex3f(k*x + 0, k*y + 0, 0)
                 glVertex3f(k*x + 0, k*y + k, 0)
                 glVertex3f(k*x + k, k*y + k, 0)
+        glEnd()
 
     def render1(self):
+        #self.render_background()
         glBegin(GL_QUADS)
-        self.render_background()
 
-        #color = (self._color.vec4[0] * 0.5, self._color.vec4[1] * 0.5, self._color.vec4[2] * 0.5, self._color.vec4[3] * 0.5)
-        #glColor4f(*color)
         for poly, color in zip(self.poly, self.colors):
-            glColor4f(color[0], color[1], color[2], 1)
+            glColor4f(color[0], color[1], color[2], 1.)
             for p in poly:
                 glVertex3f(p[0], p[1],0)  # draw each vertex
         glEnd()
-
 
 
 def make_circle(radius=10, res=30, filled=True):

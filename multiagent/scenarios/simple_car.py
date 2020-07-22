@@ -66,7 +66,7 @@ class Scenario(BaseScenario):
             agent.collide = True
             agent.silent = True
             agent.body = Car()
-            agent.size = 0.1
+            agent.size = 0.01
 
         # add landmarks
         num_land = 20
@@ -92,9 +92,9 @@ class Scenario(BaseScenario):
         x, y = pos
         track_width = abs(max(track[:, 0]) - min(track[:, 0]))
         track_height = abs(max(track[:, 1]) - min(track[:, 1]))
-        scale = max(track_height, track_width)
-        x_new = (x - min(track[:, 0])) / scale - .5
-        y_new = (y - min(track[:, 1])) / scale - .5
+        scale = max(track_height, track_width) / 1.8
+        x_new = (x - min(track[:, 0])) / scale - .9
+        y_new = (y - min(track[:, 1])) / scale - .9
         return np.array([x_new, y_new])
 
     def reset_world(self, world):
@@ -105,7 +105,7 @@ class Scenario(BaseScenario):
 
         # random properties for agents
         for i, landmark in enumerate(world.landmarks):
-            landmark.color = np.array([0.95, 0.95, 0.95])
+            landmark.color = np.array([0.15, 0.15, 0.15])
             idx = np.minimum(int(len(normalized_track) / len(world.landmarks) * i), len(normalized_track) - 1)
             landmark.state.p_pos = normalized_track[idx]
             landmark.state.p_vel = np.zeros(world.dim_p)
