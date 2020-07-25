@@ -33,16 +33,16 @@ class Scenario(BaseScenario):
             agent.silent = True
             agent.color = colors[i]
             agent.body = Car()
-            agent.size = 0.1
+            agent.size = 0.075
 
         # add landmarks
-        num_land = 6
+        num_land = 2
         world.landmarks = [Landmark() for i in range(num_land)]
         for i, landmark in enumerate(world.landmarks):
             landmark.name = 'landmark %d' % i
             landmark.collide = False
             landmark.movable = False
-            landmark.size = 0.1
+            landmark.size = 0.05
             landmark.color = colors[i]
 
         world.surfaces = [Surface() for i in range(1)]
@@ -59,12 +59,14 @@ class Scenario(BaseScenario):
         x, y = pos
         track_width = abs(max_x - min_x)
         track_height = abs(max_y - min_y)
-        scale = max(track_height, track_width) / 2
-        x_new = (x - min_x) / scale - 1
-        y_new = (y - min_y) / scale - 1
+        scale = max(track_height, track_width) / 1.5
+
+        x_new = (x - min_x) / scale - .75
+        y_new = (y - min_y) / scale - .75
         return np.array([x_new, y_new])
 
     def reset_world(self, world):
+        world.reset()
         coord = np.array(world.track)[:, 2:4]
         min_x, min_y, max_x, max_y = min(coord[:, 0]),  min(coord[:, 1]),  max(coord[:, 0]),  max(coord[:, 1])
         norm_coord = np.array([self.scale_track(c, min_x, min_y, max_x, max_y) for c in coord])
@@ -86,7 +88,7 @@ class Scenario(BaseScenario):
             surface.state.p_pos = np.zeros(world.dim_p)
             surface.state.p_vel = np.zeros(world.dim_p)
             surface.poly = np.array([[self.scale_track(c_i, min_x, min_y, max_x, max_y) for c_i in coordinates] for (coordinates, _) in world.road_poly])
-            surface.v = surface.poly[:, 1]
+            surface.v = np.mean(surface.poly[:, 0:2], axis=1)
 
     def is_collision(self, agent1, agent2):
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
@@ -169,7 +171,9 @@ class Scenario(BaseScenario):
         def rotate_entity(entity):
             dists = np.linalg.norm(entity.state.p_pos - world.surfaces[0].v, axis=1)
             idx = np.argmin(dists)
-            entity.state.p_pos = world.surfaces[0].v[(idx+1) % len(world.surfaces[0].v)]
+            p_new = world.surfaces[0].v[(idx+1) % len(world.surfaces[0].v)]
+            entity.state.p_vel = p_new - entity.state.p_pos
+            entity.state.p_pos = p_new
 
 
         for landmark in world.landmarks:
@@ -182,9 +186,11 @@ class Scenario(BaseScenario):
             other_pos.append(other.state.p_pos - agent.state.p_pos)
         # get positions of all entities in this agent's reference frame
         entity_pos = []
+        entity_vel = []
         for entity in world.landmarks:
             entity_pos.append(entity.state.p_pos - agent.state.p_pos)
-        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos)
+            entity_vel. append(entity.state.p_vel)
+        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + entity_vel + other_pos)
 
 
     def done(self, agent, world):
@@ -244,6 +250,22 @@ class RoadWorld(World):
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
+
+    def _destroy(self):
+        if not self.road:
+            return
+        for t in self.road:
+            self.box2d.DestroyBody(t)
+        self.road = []
+
+    def reset(self):
+        self._destroy()
+        self.road_poly = []
+
+        while True:
+            success = self._create_track()
+            if success:
+                break
 
     def _create_track(self):
         CHECKPOINTS = 12
