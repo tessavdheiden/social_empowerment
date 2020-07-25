@@ -21,7 +21,7 @@ def plot_snapshots(config):
     all_positions = load(f'{stats_path}/all_positions.npy')
 
     t = np.arange(len(all_infos[config.ep_num]))
-    fig = plt.figure(figsize=(25, 10))
+    fig = plt.figure(figsize=(35, 20))
     grid = plt.GridSpec(nrows=3, ncols=25, wspace=0.1, hspace=0.3, figure=fig)
 
     ax = plt.subplot(grid[0, :])
@@ -54,7 +54,19 @@ def plot_snapshots(config):
         ax2.scatter(t, all_infos[config.ep_num, :, 1, 1], c='r')
         ax2.grid(b=True)
 
+
     plt.savefig(f'{stats_path}/rewards_episode_{config.ep_num}.png')
+
+    fig, ax = plt.subplots(1, 1)
+    alphas = np.linspace(0, 1, all_images.n_frames)
+
+    for i, frame in enumerate(ImageSequence.Iterator(all_images)):
+        if i % 3 != 0: continue
+        ax.imshow(frame, alpha=alphas[-i]), ax.set_xticks([]), ax.set_yticks([])
+        ax.set_xlabel(f"{i}")
+
+    plt.savefig(f'{stats_path}/all_in_one_{config.ep_num}.png')
+
 
 
 if __name__ == '__main__':
