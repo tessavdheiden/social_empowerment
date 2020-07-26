@@ -49,22 +49,19 @@ class Scenario(BaseScenario):
             landmark.state.p_vel = np.zeros(world.dim_p)
 
     def benchmark_data(self, agent, world):
-        rew = 0
         collisions = 0
         occupied_landmarks = 0
         min_dists = 0
         for l in world.landmarks:
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
             min_dists += min(dists)
-            rew -= min(dists)
             if min(dists) < 0.1:
                 occupied_landmarks += 1
         if agent.collide:
             for a in world.agents:
                 if self.is_collision(a, agent):
-                    rew -= 1
                     collisions += 1
-        return (rew, collisions, min_dists, occupied_landmarks)
+        return (self.reward(agent, world), collisions, min_dists, occupied_landmarks)
 
 
     def is_collision(self, agent1, agent2):
@@ -103,6 +100,9 @@ class Scenario(BaseScenario):
             other_pos.append(other.state.p_pos - agent.state.p_pos)
         return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + comm)
 
+    def done(self, agent, world):
+        pass
+
 
 import torch
 from torch.autograd import Variable
@@ -128,7 +128,7 @@ class MDP(BaseMDP):
         self.moves = np.array([[0, 0], [0, .1], [0, -.1], [.1, 0], [-.1, 0],
                                [0, .05], [0, -.05], [.05, 0], [-.05, 0]])
 
-        #self.T = self.compute_transition(n_agents=n_agents, dims=dims, locations=self.configurations)
+        self.T = self.compute_transition(n_agents=n_agents, dims=dims, locations=self.configurations)
         #self.Tn = self.compute_transition_nstep(T=self.T, n_step=n_step)
         self.not_in_collision = lambda x: (len(x) == len(np.unique(x))) & np.all(x != 'inf') & np.all(x != '-inf')
 
