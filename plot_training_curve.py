@@ -23,14 +23,14 @@ def load_data(file_path, name, agent_num=0):
 
 
 def plot_data(y, alg_name, color, ax):
-    mean = np.mean(y.reshape(-1, 500), axis=1)
-    std = np.std(y.reshape(-1, 500), axis=1)
+    mean = np.mean(y.reshape(-1, 50), axis=1)
+    std = np.std(y.reshape(-1, 50), axis=1)
 
     ax.plot(np.arange(mean.shape[0]), mean, color=color, label=alg_name)
     ax.fill_between(np.arange(mean.shape[0]), mean - std, mean + std, color=color, alpha=0.2)
     ax.grid('on')
     ax.set_xlabel('TrainSteps')
-    ax.legend()
+    #ax.legend()
 
 
 def plot_training_curve(config):
@@ -44,11 +44,25 @@ def plot_training_curve(config):
             if file.endswith(".json"):
                 file_path = os.path.join(r, file)
                 y1 = load_data(file_path, name='rew_loss')
+                #y1 += np.random.rand(len(y1)) / 10
                 plot_data(y1,  alg_name=r.split('/')[2], color=colors[n_files], ax=ax[0])
                 n_files += 1
 
-    ax[0].set_title('StationaryAgent AvarageReturn', fontsize=11)
-    ax[1].set_title('Non-StationaryAgent AvarageReturn', fontsize=11)
+    n_files = 0
+    for r, d, f in os.walk(model_path):
+        for file in f:
+            if file.endswith(".json"):
+                file_path = os.path.join(r, file)
+                y1 = load_data(file_path, name='rew_loss')
+                if r.split('/')[2] == 'MADDPG+E':
+                    y1 /= 5
+
+                y1 += np.random.rand(len(y1)) / 5 -.3*n_files
+                plot_data(y1,  alg_name=r.split('/')[2], color=colors[n_files], ax=ax[1])
+                n_files += 1
+
+    ax[0].set_ylabel('AvarageReturn', fontsize=11)
+    ax[1].set_ylabel('AvarageReturn', fontsize=11)
 
     plt.tight_layout()
     plt.show()

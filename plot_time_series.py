@@ -3,11 +3,18 @@ import numpy as np
 from numpy import load
 from pathlib import Path
 import matplotlib.pyplot as plt
+plt.rc('font', family='serif')
 from estimate_empowerment import estimate_empowerment_from_positions
 from multiagent.scenarios.simple_spread import MDP as spreadMDP
 from algorithms.maddpg import MADDPG
 import os
 from PIL import Image, ImageSequence
+from scipy.ndimage.filters import gaussian_filter1d
+
+colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
+                   [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15],
+                   [0.15, 0.15, 0.15], [0.65, 0.65, 0.65]])
+
 
 def plot_snapshots(config):
     model_path = (Path('./models') / config.env_id / config.model_name / ('run%i' % config.run_num))
@@ -21,28 +28,55 @@ def plot_snapshots(config):
     all_positions = load(f'{stats_path}/all_positions.npy')
 
     t = np.arange(len(all_infos[config.ep_num]))
-    fig = plt.figure(figsize=(35, 20))
-    grid = plt.GridSpec(nrows=3, ncols=25, wspace=0.1, hspace=0.3, figure=fig)
+    r = all_infos[config.ep_num, :, 0, 0]
+    r_smooth = gaussian_filter1d(r, sigma=2)
 
-    ax = plt.subplot(grid[0, :])
-    for i, frame in enumerate(ImageSequence.Iterator(all_images)):
-        if i >= len(t): break
-        ax = plt.subplot(grid[0, i])
-        ax.imshow(frame), ax.set_xticks([]), ax.set_yticks([])
-        ax.set_xlabel(f"{i}")
+    if config.grid:
+        fig = plt.figure(figsize=(25, 10))
+        n_cols = all_images.n_frames
+        grid = plt.GridSpec(nrows=3, ncols=n_cols, wspace=0.1, hspace=0.3, figure=fig)
 
-    ax = plt.subplot(grid[1, :])
-    rewards = all_infos[config.ep_num, :, 0, 0]
-    ax.plot(t, rewards, 'b')
-    ax.set_xlabel('time (s)'), ax.set_ylabel('Reward', color='b')
+
+    # Snapshots
+    if config.grid:
+        for i, frame in enumerate(ImageSequence.Iterator(all_images)):
+            grid_ax = plt.subplot(grid[0, i])
+            grid_ax.imshow(frame), grid_ax.set_xticks([]), grid_ax.set_yticks([])
+            grid_ax.set_xlabel(f"t={i}")
+    # else:
+        # for i, frame in enumerate(ImageSequence.Iterator(all_images)):
+        #     fig, ax = plt.subplots(figsize=(15, 10))
+        #     ax.imshow(frame), ax.set_xticks([]),  ax.set_yticks([])
+        #     plt.savefig(f'{stats_path}/snapshot_episode_{config.ep_num}_frame_{i}.png')
+
+    # Rewards
+    if config.grid:
+        grid_ax = plt.subplot(grid[1, :])
+        grid_ax.plot(t, r_smooth, linestyle='solid', linewidth=5, color=colors[0])
+        grid_ax.set_xlabel('time (s)'), grid_ax.set_ylabel('Reward', color=colors[0])
+        grid_ax.set_xticks(np.arange(n_cols))
+        grid_ax.xaxis.grid()
+    else:
+        fig, ax = plt.subplots(figsize=(24, 4))
+        ax.plot(t, r_smooth, linestyle='solid', linewidth=5, color=colors[0])
+        ax.set_xlabel('TimeStep (s)', fontsize=11), ax.set_ylabel('Reward', color=colors[0])
+        ax.set_xticks(t)
+        ax.xaxis.grid()
+        #plt.savefig(f'{stats_path}/rewards_episode_{config.ep_num}.png')
 
     if config.with_empowerment:
         n_agents = 3
         mdp = spreadMDP(n_agents=n_agents, dims=(3, 3), n_step=1)
-        E = [estimate_empowerment_from_positions(p, Tn=mdp.Tn, locations=mdp.configurations) for p in all_positions[config.ep_num]]
-        ax2 = ax.twinx()
-        ax2.plot(t, E, 'r')
-        ax2.set_ylabel('Empowerment', color='r')
+        E = [estimate_empowerment_from_positions(p, Tn=mdp.T, locations=mdp.configurations) for p in all_positions[config.ep_num]]
+        E_smooth = gaussian_filter1d(E, sigma=2)
+        if config.grid:
+            ax2 = grid_ax.twinx()
+        else:
+            ax2 = ax.twinx()
+        ax2.plot(t, E_smooth, linestyle='solid', linewidth=5, color=colors[1])
+        ax2.xaxis.grid(True)
+        ax2.set_ylabel('Empowerment', color=colors[1])
+        plt.savefig(f'{stats_path}/rewards_empowerment_episode_{config.ep_num}.png')
 
     if config.with_speech:
         ax2 = plt.subplot(grid[2, :])
@@ -55,14 +89,15 @@ def plot_snapshots(config):
         ax2.grid(b=True)
 
 
-    plt.savefig(f'{stats_path}/rewards_episode_{config.ep_num}.png')
+    plt.savefig(f'{stats_path}/rewards_snapshots_episode_{config.ep_num}.png')
+    return
 
     fig, ax = plt.subplots(1, 1)
     alphas = np.linspace(0, 1, all_images.n_frames)
 
     for i, frame in enumerate(ImageSequence.Iterator(all_images)):
         if i % 3 != 0: continue
-        ax.imshow(frame, alpha=alphas[-i]), ax.set_xticks([]), ax.set_yticks([])
+        ax.imshow(frame, alpha=1-alphas[-i]), ax.set_xticks([]), ax.set_yticks([])
         ax.set_xlabel(f"{i}")
 
     plt.savefig(f'{stats_path}/all_in_one_{config.ep_num}.png')
@@ -81,7 +116,11 @@ if __name__ == '__main__':
     parser.add_argument("ep_num", default=2, type=int)
     parser.add_argument("--with_empowerment",
                         action='store_true')
+    parser.add_argument("--grid", default=0, type=int)
     parser.add_argument("--with_speech",
                         action='store_true')
     config = parser.parse_args()
-    plot_snapshots(config)
+
+    for i in range(10):
+        config.ep_num = i
+        plot_snapshots(config)
