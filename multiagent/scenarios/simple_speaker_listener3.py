@@ -129,7 +129,5 @@ class Scenario(BaseScenario):
         if agent.silent:
             return np.concatenate([agent.state.p_vel] + entity_pos + comm)
 
-
-
-
-            
+    def done(self, agent, world):
+        pass

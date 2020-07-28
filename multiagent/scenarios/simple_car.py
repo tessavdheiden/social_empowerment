@@ -9,7 +9,7 @@ import scipy.ndimage
 colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
                    [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15]])
 
-
+ROAD_COLOR = [0.4, 0.4, 0.4]
 import matplotlib.pyplot as plt
 class DynamicAgent(Agent):
     def __init__(self):
@@ -26,17 +26,17 @@ class Scenario(BaseScenario):
 
         # add agents
         num_agents = 2
-        world.agents = [DynamicAgent() for i in range(num_agents)]
+        world.set_agents([DynamicAgent() for i in range(num_agents)])
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True
             agent.silent = True
             agent.color = colors[i]
             agent.body = Car()
-            agent.size = 0.075
+            agent.size = 0.05
 
         # add landmarks
-        num_land = 2
+        num_land = 0
         world.landmarks = [Landmark() for i in range(num_land)]
         for i, landmark in enumerate(world.landmarks):
             landmark.name = 'landmark %d' % i
@@ -138,24 +138,16 @@ class Scenario(BaseScenario):
 
         return angle < np.pi / 2
 
-    def outside_boundary(self, agent):
-        if agent.state.p_pos[0] > 1 or agent.state.p_pos[0] < -1 or agent.state.p_pos[1] > 1 or agent.state.p_pos[1] < -1:
-            return True
-        else:
-            return False
-
     def reward(self, agent, world):
         rew = 0.
-        for l in world.landmarks:
-            dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
-            rew -= min(dists)
-        for a in world.agents:
-            if self.outside_boundary(a):
-                rew -= 1.
+        for view in world.top_views:
+            for road_color, road_patch in zip(ROAD_COLOR, view.transpose(2, 1, 0)):
+                rew -= abs(road_color - road_patch)
+
         return rew
 
     @staticmethod
-    def rgb2gray(rgb, norm=True, scale_factor=2):
+    def rgb2gray(rgb, norm=True, scale_factor=70):
         # rgb image -> gray [0, 1]
         gray = np.dot(rgb[..., :], [0.299, 0.587, 0.114])
         if norm:
@@ -163,34 +155,19 @@ class Scenario(BaseScenario):
             gray = gray / 128. - 1.
         if scale_factor > 1:
             gray = gray[::scale_factor, ::scale_factor]
-
         return gray
 
     def observation(self, agent, world):
-        #return self.rgb2gray(world.top_view(mode="state_pixels")).reshape(-1)
-        def rotate_entity(entity):
-            dists = np.linalg.norm(entity.state.p_pos - world.surfaces[0].v, axis=1)
-            idx = np.argmin(dists)
-            p_new = world.surfaces[0].v[(idx+1) % len(world.surfaces[0].v)]
-            entity.state.p_vel = p_new - entity.state.p_pos
-            entity.state.p_pos = p_new
-
-
-        for landmark in world.landmarks:
-            rotate_entity(landmark)
-
         # get positions of all entities in this agent's reference frame
         other_pos = []
-        for other in world.agents:
-            if other == agent: continue
-            other_pos.append(other.state.p_pos - agent.state.p_pos)
-        # get positions of all entities in this agent's reference frame
-        entity_pos = []
-        entity_vel = []
-        for entity in world.landmarks:
-            entity_pos.append(entity.state.p_pos - agent.state.p_pos)
-            entity_vel. append(entity.state.p_vel)
-        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + entity_vel + other_pos)
+        view = None
+        for i, other in enumerate(world.agents):
+            if other == agent:
+                view = world.get_views()[i]
+            else:
+                other_pos.append(other.state.p_pos - agent.state.p_pos)
+        view = list(self.rgb2gray(view).reshape(-1, 2))
+        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + view + other_pos)
 
 
     def done(self, agent, world):
@@ -226,8 +203,6 @@ TRACK_WIDTH = 40/SCALE
 BORDER = 8/SCALE
 BORDER_MIN_COUNT = 4
 
-ROAD_COLOR = [0.4, 0.4, 0.4]
-
 
 class RoadWorld(World):
     def __init__(self):
@@ -246,6 +221,100 @@ class RoadWorld(World):
             success = self._create_track()
             if success:
                 break
+        self.shared_viewer = False
+        self.top_views = []
+
+    def set_agents(self, agents):
+        self.agents = agents
+        if self.shared_viewer:
+            self.viewers = [None]
+        else:
+            self.viewers = [None] * len(self.agents)
+
+    def _reset_viewers(self):
+        for i in range(len(self.viewers)):
+            # create viewers (if necessary)
+            if self.viewers[i] is None:
+                # import rendering only if we need it (and don't import for headless machines)
+                #from gym.envs.classic_control import rendering
+                from multiagent import rendering
+                self.viewers[i] = rendering.Viewer(700,700)
+
+    def _reset_render(self):
+        self.render_geoms = None
+        self.render_geoms_xform = None
+
+    def _add_geoms_to_viewer(self):
+        # create rendering geometry
+        if self.render_geoms is None:
+            # import rendering only if we need it (and don't import for headless machines)
+            # from gym.envs.classic_control import rendering
+            from multiagent import rendering
+            self.render_geoms = []
+            self.render_geoms_xform = []
+            for entity in self.entities:
+                geom = rendering.make_circle(
+                    entity.size) if 'surface' not in entity.name else rendering.make_polygon_with_hole(entity.poly)
+                xform = rendering.Transform()
+                if 'agent' in entity.name:
+                    geom.set_color(*entity.color, alpha=0.5)
+                elif 'surface' in entity.name:
+                    geom.set_color(entity.color)
+                else:
+                    geom.set_color(*entity.color)
+                geom.add_attr(xform)
+                self.render_geoms.append(geom)
+                self.render_geoms_xform.append(xform)
+
+            # add geoms to viewer
+            for viewer in self.viewers:
+                viewer.geoms = []
+                for geom in self.render_geoms:
+                    viewer.add_geom(geom)
+
+    def _create_top_view(self):
+        self.top_views = []
+        for i in range(len(self.viewers)):
+            from multiagent import rendering
+            # update bounds to center around agent
+            cam_range = 1 if self.shared_viewer else .1
+            if self.shared_viewer:
+                pos = np.zeros(self.dim_p)
+            else:
+                pos = self.agents[i].state.p_pos
+            self.viewers[i].set_bounds(pos[0] - cam_range, pos[0] + cam_range, pos[1] - cam_range, pos[1] + cam_range)
+            # update geometry positions
+            for e, entity in enumerate(self.entities):
+                self.render_geoms_xform[e].set_translation(*entity.state.p_pos)
+            # render to display or array
+            self.top_views.append(self.viewers[i].render(return_rgb_array=True))
+
+    def get_views(self):
+        if len(self.top_views) == 0:
+            self.top_views = np.random.rand(len(self.agents), 700, 700, 3)
+
+        return self.top_views
+
+    # update state of the world
+    def step(self):
+        self._reset_render()
+        self._reset_viewers()
+        self._add_geoms_to_viewer()
+        self._create_top_view()
+        # set actions for scripted agents
+        for agent in self.scripted_agents:
+            agent.action = agent.action_callback(agent, self)
+        # gather forces applied to entities
+        p_force = [None] * len(self.entities)
+        # apply agent physical controls
+        p_force = self.apply_action_force(p_force)
+        # apply environment forces
+        p_force = self.apply_environment_force(p_force)
+        # integrate physical state
+        self.integrate_state(p_force)
+        # update agent state
+        for agent in self.agents:
+            self.update_agent_state(agent)
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
