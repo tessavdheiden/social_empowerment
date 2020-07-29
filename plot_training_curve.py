@@ -23,6 +23,7 @@ def load_data(file_path, name, agent_num=0):
 
 
 def plot_data(y, alg_name, color, ax, subsample=10):
+    y = y[:len(y)-(len(y)%subsample)]
     mean = np.mean(y.reshape(-1, subsample), axis=1)
     std = np.std(y.reshape(-1, subsample), axis=1)
 
@@ -30,7 +31,7 @@ def plot_data(y, alg_name, color, ax, subsample=10):
     ax.fill_between(np.arange(mean.shape[0]), mean - std, mean + std, color=color, alpha=0.2)
     ax.grid('on')
     ax.set_xlabel('TrainSteps')
-    ax.legend()
+    #ax.legend()
 
 
 def plot_training_curve(config):
@@ -40,14 +41,14 @@ def plot_training_curve(config):
 
     n_files = 0
     curve1 = 'pol_loss'
-    agent_num = 1
+    agent_num = 0
     for r, d, f in os.walk(model_path):
         for file in f:
             if file.endswith(".json"):
                 file_path = os.path.join(r, file)
-                print(curve1 + str(agent_num))
+                print(f'agent {curve1 + str(agent_num)} file_path = {file_path}')
                 y1 = load_data(file_path, name=curve1, agent_num=agent_num)
-                plot_data(y1,  alg_name=r.split('/')[2], color=colors[n_files], ax=ax[0])
+                plot_data(y1,  alg_name=r.split('/')[2], color=colors[n_files], ax=ax[0], subsample=50)
                 n_files += 1
 
     n_files = 0
@@ -57,7 +58,7 @@ def plot_training_curve(config):
             if file.endswith(".json"):
                 file_path = os.path.join(r, file)
                 y1 = load_data(file_path, name=curve2, agent_num=agent_num)
-                plot_data(y1,  alg_name=r.split('/')[2], color=colors[n_files], ax=ax[1], subsample=50)
+                plot_data(y1,  alg_name=r.split('/')[2], color=colors[n_files], ax=ax[1], subsample=300)
                 n_files += 1
 
     n_files = 0
@@ -67,13 +68,13 @@ def plot_training_curve(config):
             if file.endswith(".json"):
                 file_path = os.path.join(r, file)
                 y1 = load_data(file_path, name=curve3, agent_num=agent_num)
-                plot_data(y1,  alg_name=r.split('/')[2], color=colors[n_files], ax=ax[2])
+                plot_data(y1,  alg_name=r.split('/')[2], color=colors[n_files], ax=ax[2], subsample=50)
                 n_files += 1
 
-    ax[0].set_ylabel('AvarageReturn', fontsize=11)
-    ax[1].set_ylabel('PolicyLoss', fontsize=11)
+    ax[0].set_ylabel('PolicyLoss', fontsize=11)
+    ax[1].set_ylabel('AvarageReturn', fontsize=11)
     ax[2].set_ylabel('CriticLoss', fontsize=11)
-    ax[0].legend()
+    #ax[0].legend()
 
     plt.tight_layout()
     #plt.show()
