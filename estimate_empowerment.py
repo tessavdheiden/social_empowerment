@@ -6,6 +6,9 @@ from multiagent.scenarios.transition_utils import _location_to_index, _cell_to_i
 from algorithms.info_theory import blahut_arimoto
 
 
+
+
+
 def estimate_empowerment_from_positions(ps, Tn, locations, dims=(3, 3)):
     cells = np.array([_positions_to_cell(pose, x_lim_out=(0, dims[0]), y_lim_out=(0, dims[1])) for pose in
                       ps]).reshape(-1, 2)

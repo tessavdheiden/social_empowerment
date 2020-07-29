@@ -12,9 +12,7 @@ from utils.make_env import make_env
 from utils.buffer import ReplayBuffer
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 from algorithms.maddpg import MADDPG
-from estimate_empowerment import estimate_empowerment_from_positions, estimate_empowerment_from_landmark_positions
-from multiagent.scenarios.simple_spread import MDP as spreadMDP
-from multiagent.scenarios.simple_speaker_listener import MDP as slMDP
+from empowerment import DummyEmpowerment, JointEmpowerment, TransferEmpowerment
 
 USE_CUDA = False  # torch.cuda.is_available()
 
@@ -33,6 +31,15 @@ def make_parallel_env(env_id, n_rollout_threads, seed, discrete_action):
         return DummyVecEnv([get_env_fn(0)])
     else:
         return SubprocVecEnv([get_env_fn(i) for i in range(n_rollout_threads)])
+
+def create_empowerment(config, agents):
+    modules = [DummyEmpowerment(agents)]
+    if config.joint_empowerment:
+        modules.append(JointEmpowerment(agents))
+    if config.transfer_empowerment:
+        modules.append(TransferEmpowerment(agents))
+    return modules
+
 
 def run(config):
     model_dir = Path('./models') / config.env_id / config.model_name
@@ -62,17 +69,16 @@ def run(config):
                                   tau=config.tau,
                                   lr=config.lr,
                                   hidden_dim=config.hidden_dim,
-                                  recurrent=config.recurrent)
+                                  recurrent=config.recurrent,
+                                  convolutional=config.convolutional)
     replay_buffer = ReplayBuffer(config.buffer_length, maddpg.nagents,
                                  [obsp.shape[0] for obsp in env.observation_space],
                                  [acsp.shape[0] if isinstance(acsp, Box) else acsp.n if isinstance(acsp, Discrete) else
                                  sum(acsp.high - acsp.low + 1) for acsp in env.action_space])
     t = 0
 
-    if config.empowerment:
-        n_landmarks = env.get_landmark_positions().shape[1]
-        #mdp = MDP(n_agents=maddpg.nagents, dims=(3, 3), n_step=1)
-        mdp = slMDP(actor=maddpg, n_landmarks=n_landmarks, n_channels=env.get_communications().shape[2])
+    empowerment_modules = create_empowerment(config, maddpg.agents)
+
     for ep_i in range(0, config.n_episodes, config.n_rollout_threads):
         print("Episodes %i-%i of %i" % (ep_i + 1,
                                         ep_i + 1 + config.n_rollout_threads,
@@ -85,7 +91,7 @@ def run(config):
         maddpg.scale_noise(config.final_noise_scale + (config.init_noise_scale - config.final_noise_scale) * explr_pct_remaining)
         maddpg.reset_noise()
         for et_i in range(config.episode_length):
-            #start = time.time()
+            start = time.time()
             # rearrange observations to be per agent, and convert to torch Variable
             torch_obs = [Variable(torch.Tensor(np.vstack(obs[:, i])),
                                   requires_grad=False)
@@ -98,15 +104,8 @@ def run(config):
             actions = [[ac[i] for ac in agent_actions] for i in range(config.n_rollout_threads)]
             next_obs, rewards, dones, infos = env.step(actions)
 
-            if config.empowerment:
-                #T = mdp.get_transition_for_state_batch_implementation(land_p, agent_p)
-                #emps = rewards * estimate_empowerment_from_landmark_positions(mdp.get_idx_from_positions(land_p, agent_p), T=T)
-                E = mdp.get_unique_next_states_speaker(obs, next_obs, n_landmarks) + mdp.get_unique_next_states(obs, next_obs, n_landmarks)
-                empowerment = rewards * E
-            else:
-                empowerment = rewards
-
-            #emps = np.ones_like(rewards) * estimate_empowerment_from_positions(env.get_positions().squeeze(0), Tn=mdp.Tn, locations=mdp.configurations) if config.with_empowerment else rewards
+            empowerment = np.mean(np.array([e.compute(rewards, next_obs) for e in empowerment_modules]), axis=0)
+            print(empowerment.shape)
 
             replay_buffer.push(obs, agent_actions, rewards, empowerment, next_obs, dones)
             obs = next_obs
@@ -124,6 +123,8 @@ def run(config):
                         maddpg.update(sample, a_i, logger=logger)
                     maddpg.update_all_targets()
                 maddpg.prep_rollouts(device='cpu')
+
+                print(f'computation time = {time.time() - start:.3f}s')
         ep_rews = replay_buffer.get_average_rewards(
             config.episode_length * config.n_rollout_threads)
         for a_i, a_ep_rew in enumerate(ep_rews):
@@ -136,7 +137,7 @@ def run(config):
             maddpg.save(run_dir / 'incremental' / ('model_ep%i.pt' % (ep_i + 1)))
             maddpg.save(run_dir / 'model.pt')
 
-        #print(f'computation time = {time.time() - start:.3f}s')
+
 
     maddpg.save(run_dir / 'model.pt')
     env.close()
@@ -179,7 +180,12 @@ if __name__ == '__main__':
                         action='store_true')
     parser.add_argument("--recurrent",
                         action='store_true')
-    parser.add_argument("--empowerment",
+    parser.add_argument("--convolutional",
+                        action='store_true')
+    parser.add_argument("--joint_empowerment",
+                        action='store_true')
+
+    parser.add_argument("--transfer_empowerment",
                         action='store_true')
 
     config = parser.parse_args()
