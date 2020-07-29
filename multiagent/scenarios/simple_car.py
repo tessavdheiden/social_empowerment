@@ -33,7 +33,7 @@ class Scenario(BaseScenario):
             agent.silent = True
             agent.color = colors[i]
             agent.body = Car()
-            agent.size = 0.05
+            agent.size = 0.025
 
         # add landmarks
         num_land = 0
@@ -153,8 +153,6 @@ class Scenario(BaseScenario):
         if norm:
             # normalize
             gray = gray / 128. - 1.
-        if scale_factor > 1:
-            gray = gray[::scale_factor, ::scale_factor]
         return gray
 
     def observation(self, agent, world):
@@ -166,8 +164,10 @@ class Scenario(BaseScenario):
                 view = world.get_views()[i]
             else:
                 other_pos.append(other.state.p_pos - agent.state.p_pos)
-        view = list(self.rgb2gray(view).reshape(-1, 2))
-        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + view + other_pos)
+
+        view = self.rgb2gray(view)
+        #obs = np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + other_pos)
+        return view.reshape(-1)#np.hstack((obs, view.reshape(-1)))
 
 
     def done(self, agent, world):
@@ -238,7 +238,7 @@ class RoadWorld(World):
                 # import rendering only if we need it (and don't import for headless machines)
                 #from gym.envs.classic_control import rendering
                 from multiagent import rendering
-                self.viewers[i] = rendering.Viewer(700,700)
+                self.viewers[i] = rendering.Viewer(STATE_W,STATE_H)
 
     def _reset_render(self):
         self.render_geoms = None
@@ -287,11 +287,11 @@ class RoadWorld(World):
             for e, entity in enumerate(self.entities):
                 self.render_geoms_xform[e].set_translation(*entity.state.p_pos)
             # render to display or array
-            self.top_views.append(self.viewers[i].render(return_rgb_array=True))
+            self.top_views.append(self.viewers[i].render(return_rgb_array=True, mode='state_pixels'))
 
     def get_views(self):
         if len(self.top_views) == 0:
-            self.top_views = np.random.rand(len(self.agents), 700, 700, 3)
+            self.top_views = np.random.rand(len(self.agents), STATE_W, STATE_H, 3)
 
         return self.top_views
 
