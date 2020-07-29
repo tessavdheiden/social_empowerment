@@ -78,26 +78,28 @@ class RecurrentUnit(nn.Module):
 class ConvolutionalUnit(nn.Module):
     def __init__(self, input_dim, out_dim):
         super(ConvolutionalUnit, self).__init__()
+        self.hidden_dim = 16
         self.cnn = nn.Sequential(  # input shape (4, 96, 96)
-            nn.Conv2d(1, 8, kernel_size=4, stride=2),
+            nn.Conv2d(1, 2, kernel_size=4, stride=2),
             nn.ReLU(),  # activation
-            nn.Conv2d(8, 16, kernel_size=3, stride=2),  # (8, 47, 47)
+            nn.Conv2d(2, 4, kernel_size=3, stride=2),  # (8, 47, 47)
             nn.ReLU(),  # activation
-            nn.Conv2d(16, 32, kernel_size=3, stride=2),  # (16, 23, 23)
+            nn.Conv2d(4, 8, kernel_size=3, stride=2),  # (16, 23, 23)
             nn.ReLU(),  # activation
-            nn.Conv2d(32, 64, kernel_size=3, stride=2),  # (32, 11, 11)
+            nn.Conv2d(8, 16, kernel_size=3, stride=2),  # (32, 11, 11)
             nn.ReLU(),  # activation
-            nn.Conv2d(64, 128, kernel_size=3, stride=1),  # (64, 5, 5)
+            nn.Conv2d(16, 32, kernel_size=3, stride=1),  # (64, 5, 5)
             nn.ReLU(),  # activation
-            nn.Conv2d(128, 256, kernel_size=3, stride=1),  # (128, 3, 3)
+            nn.Conv2d(32, self.hidden_dim, kernel_size=3, stride=1),  # (128, 3, 3)
             nn.ReLU(),  # activation
-        ) # output shape (256, 1, 1)
-        self.fc = nn.Sequential(nn.Linear(256, out_dim), nn.ReLU())
+        )  # output shape (256, 1, 1)
+
+        self.fc = nn.Sequential(nn.Linear(self.hidden_dim, out_dim), nn.ReLU())
         self.apply(self._weights_init)
 
     @staticmethod
     def _weights_init(m):
-        if isinstance(m, nn.Conv1d):
+        if isinstance(m, nn.Conv2d):
             nn.init.xavier_uniform_(m.weight, gain=nn.init.calculate_gain('relu'))
             nn.init.constant_(m.bias, 0.1)
 
@@ -105,5 +107,5 @@ class ConvolutionalUnit(nn.Module):
         batch_size, feat_dim = x.shape
         w = int(feat_dim ** .5)
         x = self.cnn(x.view(batch_size, 1, w, w))
-        x = x.view(-1, 256)
+        x = x.view(-1, self.hidden_dim)
         return self.fc(x)

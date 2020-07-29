@@ -166,8 +166,8 @@ class Scenario(BaseScenario):
                 other_pos.append(other.state.p_pos - agent.state.p_pos)
 
         view = self.rgb2gray(view)
-        #obs = np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + other_pos)
-        return view.reshape(-1)#np.hstack((obs, view.reshape(-1)))
+        obs = np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + other_pos)
+        return np.hstack((obs, view.reshape(-1)))
 
 
     def done(self, agent, world):
@@ -182,8 +182,8 @@ from gym.utils import seeding
 import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revoluteJointDef, contactListener)
 
-STATE_W = 96   # less than Atari 160x192
-STATE_H = 96
+STATE_W = 16   # less than Atari 160x192
+STATE_H = 16
 VIDEO_W = 600
 VIDEO_H = 400
 WINDOW_W = 1000
@@ -287,7 +287,7 @@ class RoadWorld(World):
             for e, entity in enumerate(self.entities):
                 self.render_geoms_xform[e].set_translation(*entity.state.p_pos)
             # render to display or array
-            self.top_views.append(self.viewers[i].render(return_rgb_array=True, mode='state_pixels'))
+            self.top_views.append(self.viewers[i].render(return_rgb_array=True))
 
     def get_views(self):
         if len(self.top_views) == 0:
