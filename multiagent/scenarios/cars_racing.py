@@ -1,6 +1,7 @@
 """
 Easiest continuous control task to learn from pixels, a top-down racing environment.
 Discrete control is reasonable in this environment as well, on/off discretization is
+Discrete control is reasonable in this environment as well, on/off discretization is
 fine.
 State consists of STATE_W x STATE_H pixels.
 The reward is -0.1 every frame and +1000/N for every track tile visited, where N is
