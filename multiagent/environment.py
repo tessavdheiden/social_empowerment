@@ -231,7 +231,7 @@ class MultiAgentEnv(gym.Env):
                 if 'surface' in entity.name:
                     geom = rendering.make_polygon_with_hole(entity.poly)
                 elif 'dynamic' in entity.name:
-                    geom = rendering.make_polygon(entity.size*np.array([[-1, -1], [-1, 1], [0, 2], [1, 1], [1, -1]]))
+                    geom = rendering.make_circle_dir(entity.size)
                 else:
                     geom = rendering.make_circle(entity.size)
                 xform = rendering.Transform()

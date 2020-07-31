@@ -1,7 +1,7 @@
 import math
 import numpy as np
 from gym.utils import seeding
-from multiagent.rendering import Viewer
+from multiagent.rendering import Viewer, Transform
 import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revoluteJointDef, contactListener)
 from multiagent.core import World
@@ -34,6 +34,21 @@ class RoadViewer(Viewer):
     def __init__(self, width, height):
         super(RoadViewer, self).__init__(width, height)
         pass
+
+    def set_bounds_at_angle(self, left, right, bottom, top, angle):
+        assert right > left and top > bottom
+        # assert angle > 0 and angle < 2*np.pi
+        scalex = self.width / (right - left)
+        scaley = self.height / (top - bottom)
+        p = np.array([(right + left) / 2 * scalex, (top + bottom) / 2 * scaley])
+        c, s = np.cos(angle), np.sin(angle)
+        R = np.array(((c, -s), (s, c)))
+        p = np.dot(R, p)
+        x_new, y_new = p[0], p[1]
+        self.transform = Transform(
+            translation=(self.width / 2 - x_new, self.height / 2 - y_new),
+            scale=(scalex, scaley),
+            rotation=angle)
 
 
 class RoadWorld(World):
@@ -117,7 +132,8 @@ class RoadWorld(World):
                 pos = np.zeros(self.dim_p)
             else:
                 pos = self.agents[i].state.p_pos
-            self.viewers[i].set_bounds(pos[0] - cam_range, pos[0] + cam_range, pos[1] - cam_range, pos[1] + cam_range)
+            angle = -self.agents[i].state.angle
+            self.viewers[i].set_bounds_at_angle(pos[0] - cam_range, pos[0] + cam_range, pos[1] - cam_range, pos[1] + cam_range, angle)
             # update geometry positions
             for e, entity in enumerate(self.entities):
                 self.render_geoms_xform[e].set_translation(*entity.state.p_pos)

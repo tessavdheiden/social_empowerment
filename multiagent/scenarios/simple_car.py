@@ -105,8 +105,9 @@ class Scenario(BaseScenario):
             else:
                 other_pos.append(other.state.p_pos - agent.state.p_pos)
 
+        dir = np.array([np.cos(agent.state.angle), np.sin(agent.state.angle)])
         view = self.rgb2gray(view)
-        obs = np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + other_pos)
+        obs = np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + [dir] + other_pos)
         return np.hstack((obs, view.reshape(-1)))
 
     def done(self, agent, world):
@@ -114,5 +115,4 @@ class Scenario(BaseScenario):
 
     def benchmark_data(self, agent, world):
         return (self.reward(agent, world), )
-
 

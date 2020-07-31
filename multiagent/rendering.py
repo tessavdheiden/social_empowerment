@@ -278,6 +278,19 @@ def make_circle(radius=10, res=30, filled=True):
     else:
         return PolyLine(points, True)
 
+def make_circle_dir(radius=10, res=30, filled=True):
+    points = []
+    for i in range(res):
+        ang = 2 * math.pi * i / res
+        points.append((math.cos(ang) * radius, math.sin(ang) * radius))
+    if filled:
+        circ = FilledPolygon(points)
+    else:
+        circ = PolyLine(points, True)
+    triangle = make_polygon([(-radius, 0), (0, radius), (radius, 0)])
+    geom = Compound([circ, triangle])
+    return geom
+
 def make_polygon(v, filled=True):
     if filled: return FilledPolygon(v)
     else: return PolyLine(v, True)
