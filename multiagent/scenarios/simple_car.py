@@ -24,7 +24,7 @@ class Scenario(BaseScenario):
         num_agents = 2
         world.set_agents([DynamicAgent() for i in range(num_agents)])
         for i, agent in enumerate(world.agents):
-            agent.name = 'agent %d' % i
+            agent.name = 'dynamic agent %d' % i
             agent.collide = True
             agent.silent = True
             agent.color = colors[i]
@@ -55,9 +55,6 @@ class Scenario(BaseScenario):
     def reset_world(self, world):
         world.reset()
         coord = np.array(world.track)[:, 2:4]
-        # world.track = np.array(world.track)
-        # plt.quiver(world.track[:, 2], world.track[:, 3], np.cos(world.track[:, 1]), np.sin(world.track[:, 1]))
-        # plt.show()
         min_x, min_y, max_x, max_y = min(coord[:, 0]),  min(coord[:, 1]),  max(coord[:, 0]),  max(coord[:, 1])
         norm_coord = np.array([self.scale_track(c, min_x, min_y, max_x, max_y) for c in coord])
 
@@ -66,6 +63,7 @@ class Scenario(BaseScenario):
         for i, agent in enumerate(world.agents):
             agent.state.p_pos = norm_coord[start_i[i]]
             agent.state.p_vel = np.zeros(world.dim_p)
+            agent.state.angle = world.track[start_i[i]][1]
             #agent.body.make(init_angle=world.track[start_i[i]][1], init_x=0, init_y=0, world=world.box2d, color=(0.8,0.0,0.0)) # TODO: set x, y
 
         # pure for visualizing the track
