@@ -105,7 +105,6 @@ def run(config):
             next_obs, rewards, dones, infos = env.step(actions)
 
             empowerment = np.mean(np.array([e.compute(rewards, next_obs) for e in empowerment_modules]), axis=0)
-            print(empowerment.shape)
 
             replay_buffer.push(obs, agent_actions, rewards, empowerment, next_obs, dones)
             obs = next_obs

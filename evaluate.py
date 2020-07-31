@@ -60,7 +60,8 @@ def run(config):
             if elapsed < ifi:
                 time.sleep(ifi - elapsed)
             env.render('human')
-            all_infos[ep_i, t_i, :, :len(infos['n'][-1])] = np.array(infos['n'])
+            if len(np.array(infos['n']).shape) < 4:
+                all_infos[ep_i, t_i, :, :len(infos['n'][-1])] = np.array(infos['n'])
 
         if config.save_gifs:
             gif_num = 0

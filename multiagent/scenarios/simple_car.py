@@ -30,6 +30,7 @@ class Scenario(BaseScenario):
             agent.color = colors[i]
             agent.body = Car()
             agent.size = 0.025
+            agent.max_speed = 1.
 
         world.surfaces = [Surface() for i in range(1)]
         for i, s in enumerate(world.surfaces):
@@ -65,7 +66,7 @@ class Scenario(BaseScenario):
         for i, agent in enumerate(world.agents):
             agent.state.p_pos = norm_coord[start_i[i]]
             agent.state.p_vel = np.zeros(world.dim_p)
-            agent.body.make(init_angle=world.track[start_i[i]][1], init_x=0, init_y=0, world=world.box2d, color=(0.8,0.0,0.0)) # TODO: set x, y
+            #agent.body.make(init_angle=world.track[start_i[i]][1], init_x=0, init_y=0, world=world.box2d, color=(0.8,0.0,0.0)) # TODO: set x, y
 
         # pure for visualizing the track
         for i, surface in enumerate(world.surfaces):
@@ -82,9 +83,9 @@ class Scenario(BaseScenario):
                 rew -= abs(road_color - road_patch / 255.)
         c, w, h = view.shape
         rew /= (c*w*h)
-        rew -= np.sqrt(np.square(agent.state.p_vel[0]) + np.square(agent.state.p_vel[1]))
-        rew -= np.sqrt(np.square(agent.state.p_vel[0]) + np.square(agent.state.p_vel[1]))
-
+        rew = np.sum(rew)
+        #speed = np.sqrt(np.square(agent.state.p_vel[0]) + np.square(agent.state.p_vel[1]))
+        #rew += speed
         return rew
 
     @staticmethod
