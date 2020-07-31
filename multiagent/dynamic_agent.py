@@ -1,13 +1,20 @@
 import numpy as np
 import math
 
-from multiagent.core import Agent, AgentState
+from multiagent.core import Agent, AgentState, Action
 
 
-class CarState(AgentState):
+class DynamicState(AgentState):
     def __init__(self):
-        super(CarState, self).__init__()
+        super(DynamicState, self).__init__()
         self.angle = None
+
+
+class DynamicAction(Action):
+    def __init__(self):
+        super(DynamicAction, self).__init__()
+        self.r = None
+        self.v = None
 
 
 class DynamicAgent(Agent):
@@ -19,7 +26,7 @@ class DynamicAgent(Agent):
                         'Brake':        [0.0, 0.0, 0.8],
                         'Accelerate':   [0.0, 1.0, 0.0],
                         'Nothing':      [0.0, 0.0, 0.0]}
-        self.state = CarState()
+        self.state = DynamicState()
 
     def update_state(self):
         self.state.p_pos[0] = self.body.hull.position[0]

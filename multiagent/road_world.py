@@ -5,6 +5,7 @@ from multiagent.rendering import Viewer, Transform
 import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revoluteJointDef, contactListener)
 from multiagent.core import World
+from multiagent.dynamic_agent import DynamicAction
 
 STATE_W = 16   # less than Atari 160x192
 STATE_H = 16
@@ -146,6 +147,36 @@ class RoadWorld(World):
 
         return self.top_views
 
+    def transform_action(self, u):
+        action = DynamicAction()
+        if u[0] == 0 and u[1] == 0:     action.v = +.1; action.r = 0
+        elif u[0] == 0 and u[1] < 0:    action.v = +.1; action.r = .1
+        elif u[0] == 0 and u[1] > 0:    action.v = +.1; action.r = -.1
+        elif u[0] < 0 and u[1] == 0:    action.v = +.2; action.r = .1
+        elif u[0] > 0 and u[1] == 0:    action.v = +.2; action.r = -.1
+        return action
+
+    def propagate(self, agent):
+        agent.action = self.transform_action(agent.action.u)
+        agent.state.angle = agent.state.angle + agent.action.r
+        agent.state.p_vel[0] = agent.action.v * np.cos(agent.state.angle + np.pi/2)
+        agent.state.p_vel[1] = agent.action.v * np.sin(agent.state.angle + np.pi/2)
+
+    # integrate physical state
+    def integrate_state(self, p_force):
+        for i,entity in enumerate(self.entities):
+            if not entity.movable: continue
+            self.propagate(entity)
+            entity.state.p_vel = entity.state.p_vel * (1 - self.damping)
+            if (p_force[i] is not None):
+                entity.state.p_vel += (p_force[i] / entity.mass) * self.dt
+            if entity.max_speed is not None:
+                speed = np.sqrt(np.square(entity.state.p_vel[0]) + np.square(entity.state.p_vel[1]))
+                if speed > entity.max_speed:
+                    entity.state.p_vel = entity.state.p_vel / np.sqrt(np.square(entity.state.p_vel[0]) +
+                                                                  np.square(entity.state.p_vel[1])) * entity.max_speed
+            entity.state.p_pos += entity.state.p_vel * self.dt
+
     # update state of the world
     def step(self):
         self._reset_render()
@@ -158,9 +189,9 @@ class RoadWorld(World):
         # gather forces applied to entities
         p_force = [None] * len(self.entities)
         # apply agent physical controls
-        p_force = self.apply_action_force(p_force)
+        #p_force = self.apply_action_force(p_force)
         # apply environment forces
-        p_force = self.apply_environment_force(p_force)
+        # p_force = self.apply_environment_force(p_force)
         # integrate physical state
         self.integrate_state(p_force)
         # update agent state

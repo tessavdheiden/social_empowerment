@@ -1,17 +1,18 @@
-# Improving MADDPG with empowerment
-PyTorch Implementation of MADDPG from [*Multi-Agent Actor-Critic for Mixed
-Cooperative-Competitive Environments*](https://arxiv.org/abs/1706.02275) (Lowe et. al. 2017)
-MADDPG implemented by [shariqiqbal2810](https://github.com/shariqiqbal2810/maddpg-pytorch)
+# Multi-Agent Reinforcement Learning for Cooperative Coordination
+This repo contains an extension of the [*MADDPG*](https://github.com/shariqiqbal2810/maddpg-pytorch) algorithm 
+and simulator which is a combination of [particle-env](https://github.com/openai/multiagent-particle-envs) and
+[OpenAI Gym Car](https://github.com/openai/gym/blob/master/gym/envs/box2d/car_racing.py).
+
+The MADDPG agents can have complex rules, which make them unable to cooperate with novel partners. 
+My solution is to extend it with Empowerment, a information theoretic notion, giving agents the ability to be in control.
 
 ## Requirements
 
 * [OpenAI baselines](https://github.com/openai/baselines), commit hash: 98257ef8c9bd23a24a330731ae54ed086d9ce4a7
-* My [fork](https://github.com/shariqiqbal2810/multiagent-particle-envs) of Multi-agent Particle Environments
+* [OpenAi multi-agent-particle-envs](https://github.com/shariqiqbal2810/multiagent-particle-envs) of Multi-agent Particle Environments
 * [PyTorch](http://pytorch.org/), version: 0.3.0.post4
 * [OpenAI Gym](https://github.com/openai/gym), version: 0.9.4
 * [Tensorboard](https://github.com/tensorflow/tensorboard), version: 0.4.0rc3 and [Tensorboard-Pytorch](https://github.com/lanpa/tensorboard-pytorch), version: 1.0 (for logging)
-
-The versions are just what I used and not necessarily strict requirements.
 
 ## How to Run
 
@@ -27,9 +28,18 @@ If you want to checkout the training loss on tensorboard, activate the VE and us
 tensorboard --logdir models/model_name
 ```
 
-## Results
+## Simulation Videos
 
-### Cooperative Navigation
+### Cooperative Communication
+MADDPG             | EMADDPG
+:-------------------------:|:-------------------------:
+<img src="https://user-images.githubusercontent.com/24938569/89042658-91c58080-d347-11ea-8acc-92f1ef9a7b15.gif" width="400" />|<img src="https://user-images.githubusercontent.com/24938569/89042716-abff5e80-d347-11ea-9ff1-fed829d10d57.gif" width="400" />
+
+### Cooperative Driving
+
+<img src="https://user-images.githubusercontent.com/24938569/89043030-2d56f100-d348-11ea-8066-4b2584595439.gif" width="400" />
+
+### Cooperative Coordination
 
 | Agent     | Average dist. | # collisions |
 | :---:     | :---:         | :---: |
