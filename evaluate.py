@@ -55,6 +55,7 @@ def run(config):
 
             if config.save_gifs:
                 frames.append(env.render('rgb_array')[0])
+                # frames.append(env.world.viewers[0].render(return_rgb_array = True)) uncomment if local views visible
             calc_end = time.time()
             elapsed = calc_end - calc_start
             if elapsed < ifi:

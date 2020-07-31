@@ -39,19 +39,26 @@ MADDPG             | EMADDPG
 
 <img src="https://user-images.githubusercontent.com/24938569/89043030-2d56f100-d348-11ea-8066-4b2584595439.gif" width="400" />
 
+Visual inputs:
+
+Red Agent          | Green Agent
+:-------------------------:|:-------------------------:
+<img src="https://user-images.githubusercontent.com/24938569/89044659-8aec3d00-d34a-11ea-8617-69b0b3a1776c.gif" width="40" /> | <img src="https://user-images.githubusercontent.com/24938569/89044549-61331600-d34a-11ea-9c16-d02461694e40.gif" width="40" />
+
 ### Cooperative Coordination
 
-| Agent     | Average dist. | # collisions |
+| Agent     | Average dist. | Collisions % |
 | :---:     | :---:         | :---: |
-| MADDPG    | 1.767         | 0.209 |
-| DDPG      | 1.858         | 0.375 |
-| MADDPG+E  | 1.980         | 0.020 |
+| MADDPG    | 1.767         | 20.9 |
+| EMADDPG   | 0.180         | 2.01 |
+
+The average distance of a landmark (lower is better) and number of collisions between agents.
 
 ### Cooperative Communication
 
-| Agent     | Taget reach % | Average distance |
-| :---:     | :---:         | :---: |
-| MADDPG    | 84.0         | 0.133 |
-| DDPG      | 32.0         | 0.456 |
-| MADDPG+E  | 82.8         | 0.212 |
+| Agent     | Taget reach % | Average distance | Obstacle hits % |
+| :---:     | :---:         | :---: |           :---: |
+| MADDPG    | 84.0          | 2.233 |           53.5 |
+| EMADDPG   | 98.8          | 0.012 |           1.90 |
 
+The target is reached if it has <.1 from the target landmark (higher is better).
