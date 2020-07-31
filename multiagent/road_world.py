@@ -1,6 +1,7 @@
 import math
 import numpy as np
 from gym.utils import seeding
+from multiagent.rendering import Viewer
 import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revoluteJointDef, contactListener)
 from multiagent.core import World
@@ -27,6 +28,12 @@ BORDER = 8/SCALE
 BORDER_MIN_COUNT = 4
 
 ROAD_COLOR = [0.4, 0.4, 0.4]
+
+
+class RoadViewer(Viewer):
+    def __init__(self, width, height):
+        super(RoadViewer, self).__init__(width, height)
+        pass
 
 
 class RoadWorld(World):
@@ -65,7 +72,7 @@ class RoadWorld(World):
                 # import rendering only if we need it (and don't import for headless machines)
                 #from gym.envs.classic_control import rendering
                 from multiagent import rendering
-                self.viewers[i] = rendering.Viewer(STATE_W,STATE_H)
+                self.viewers[i] = RoadViewer(STATE_W,STATE_H)
                 self.transforms[i] = rendering.Transform()
 
     def _reset_render(self):
