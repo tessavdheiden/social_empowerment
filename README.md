@@ -35,6 +35,12 @@ MADDPG             | EMADDPG
 :-------------------------:|:-------------------------:
 <img src="https://user-images.githubusercontent.com/24938569/89042658-91c58080-d347-11ea-8acc-92f1ef9a7b15.gif" width="400" />|<img src="https://user-images.githubusercontent.com/24938569/89042716-abff5e80-d347-11ea-9ff1-fed829d10d57.gif" width="400" />
 
+### Cooperative Coordination
+MADDPG             | EMADDPG
+:-------------------------:|:-------------------------:
+<img src="https://user-images.githubusercontent.com/24938569/89157902-94092400-d56d-11ea-985e-ec243e9daa49.gif" width="400" />|<img src="https://user-images.githubusercontent.com/24938569/89157957-a84d2100-d56d-11ea-93ec-a3dd27494d24.gif" width="400" />
+
+
 ### Cooperative Driving
 
 <img src="https://user-images.githubusercontent.com/24938569/89043030-2d56f100-d348-11ea-8066-4b2584595439.gif" width="400" />
