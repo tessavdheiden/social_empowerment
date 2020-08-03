@@ -147,17 +147,17 @@ class RoadWorld(World):
 
         return self.top_views
 
-    def transform_action(self, u):
+    def transform_action(self, u, agent):
         action = DynamicAction()
-        if u[0] == 0 and u[1] == 0:     action.v = +.1; action.r = 0
-        elif u[0] == 0 and u[1] < 0:    action.v = +.1; action.r = .1
-        elif u[0] == 0 and u[1] > 0:    action.v = +.1; action.r = -.1
-        elif u[0] < 0 and u[1] == 0:    action.v = +.2; action.r = .1
-        elif u[0] > 0 and u[1] == 0:    action.v = +.2; action.r = -.1
+        if u[0] == 0 and u[1] == 0:     action.v = +agent.max_speed; action.r = 0
+        elif u[0] == 0 and u[1] < 0:    action.v = +agent.max_speed; action.r = .1
+        elif u[0] == 0 and u[1] > 0:    action.v = +agent.max_speed; action.r = -.1
+        elif u[0] < 0 and u[1] == 0:    action.v = +2*agent.max_speed; action.r = .1
+        elif u[0] > 0 and u[1] == 0:    action.v = +2*agent.max_speed; action.r = -.1
         return action
 
     def propagate(self, agent):
-        agent.action = self.transform_action(agent.action.u)
+        agent.action = self.transform_action(agent.action.u, agent)
         agent.state.angle = agent.state.angle + agent.action.r
         agent.state.p_vel[0] = agent.action.v * np.cos(agent.state.angle + np.pi/2)
         agent.state.p_vel[1] = agent.action.v * np.sin(agent.state.angle + np.pi/2)
