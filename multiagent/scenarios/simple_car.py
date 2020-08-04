@@ -1,16 +1,16 @@
 import numpy as np
 from multiagent.core import Surface
 from multiagent.dynamic_agent import DynamicAgent
-from multiagent.road_world import RoadWorld
+from multiagent.road_world import RoadWorld, ROAD_COLOR, TRACK_RAD
 from multiagent.scenario import BaseScenario
-from multiagent.scenarios.car_dynamics import Car
-from multiagent.scenarios.cars_racing import CarRacing, FrictionDetector
+from multiagent.scenarios.car_dynamics import Car, HULL_POLY1, HULL_POLY2, HULL_POLY3, HULL_POLY4, SIZE
 import scipy.ndimage
 
 
 colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
                    [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15]])
-ROAD_COLOR = [0.4, 0.4, 0.4]
+
+SCALE = TRACK_RAD * 2 / 2
 
 
 class Scenario(BaseScenario):
@@ -29,7 +29,12 @@ class Scenario(BaseScenario):
             agent.silent = True
             agent.color = colors[i]
             agent.body = Car()
-            agent.size = 0.025
+
+            agent.shape = [[(x * SIZE / SCALE, y * SIZE / SCALE) for x, y in HULL_POLY1],
+                           [(x * SIZE / SCALE, y * SIZE / SCALE) for x, y in HULL_POLY2],
+                           [(x * SIZE / SCALE, y * SIZE / SCALE) for x, y in HULL_POLY3],
+                           [(x * SIZE / SCALE, y * SIZE / SCALE) for x, y in HULL_POLY4]]
+            agent.size = SIZE
 
         world.agents[0].max_speed = .1
         world.agents[1].max_speed = .2
@@ -44,25 +49,14 @@ class Scenario(BaseScenario):
         self.reset_world(world)
         return world
 
-    def scale_track(self, pos, min_x, min_y, max_x, max_y):
-        x, y = pos
-        track_width = abs(max_x - min_x)
-        track_height = abs(max_y - min_y)
-        scale = max(track_height, track_width) / 1.5
-
-        x_new = (x - min_x) / scale - .75
-        y_new = (y - min_y) / scale - .75
-        return np.array([x_new, y_new])
-
     def reset_world(self, world):
         world.reset()
         coord = np.array(world.track)[:, 2:4]
-        min_x, min_y, max_x, max_y = min(coord[:, 0]),  min(coord[:, 1]),  max(coord[:, 0]),  max(coord[:, 1])
-        norm_coord = np.array([self.scale_track(c, min_x, min_y, max_x, max_y) for c in coord])
+        norm_coord = np.array([(c[0] / SCALE, c[1] / SCALE) for c in coord])
 
         # all agents start somewhere
         start_i = np.random.choice(len(coord))
-        dist = 10
+        dist = 5
         for i, agent in enumerate(world.agents):
             idx = (start_i - i * dist) % len(coord)
             agent.state.p_pos = norm_coord[idx]
@@ -75,7 +69,7 @@ class Scenario(BaseScenario):
             surface.color = np.array([color for (_, color) in world.road_poly])
             surface.state.p_pos = np.zeros(world.dim_p)
             surface.state.p_vel = np.zeros(world.dim_p)
-            surface.poly = np.array([[self.scale_track(c_i, min_x, min_y, max_x, max_y) for c_i in coordinates] for (coordinates, _) in world.road_poly])
+            surface.poly = np.array([[(c_i[0] / SCALE, c_i[1] / SCALE) for c_i in coordinates] for (coordinates, _) in world.road_poly])
             surface.v = np.mean(surface.poly[:, 0:2], axis=1)
 
     def is_collision(self, agent1, agent2):

@@ -56,10 +56,8 @@ class Car(object):
         #self.set(init_angle, init_x, init_y)
 
     @staticmethod
-    def make_hull(init_angle, init_x, init_y, world, color):
+    def make_hull(world, color):
         hull = world.CreateDynamicBody(
-            position=(init_x, init_y),
-            angle=init_angle,
             fixtures=[
                 fixtureDef(shape=polygonShape(vertices=[(x * SIZE, y * SIZE) for x, y in HULL_POLY1]), density=1.0),
                 fixtureDef(shape=polygonShape(vertices=[(x * SIZE, y * SIZE) for x, y in HULL_POLY2]), density=1.0),
@@ -117,7 +115,9 @@ class Car(object):
         return wheels
 
     def make(self, init_angle, init_x, init_y, world, color=(0.8,0.0,0.0)):
-        self.hull = self.make_hull(init_angle, init_x, init_y, world, color)
+        self.hull = self.make_hull(world, color)
+        self.hull.position = (init_x, init_y)
+        self.hull.angle = init_angle
         self.wheels = self.make_wheels(self.hull, init_angle, init_x, init_y, world)
 
         self.drawlist =  self.wheels + [self.hull]

@@ -291,6 +291,13 @@ def make_circle_dir(radius=10, res=30, filled=True):
     geom = Compound([circ, triangle])
     return geom
 
+def make_compound(vs):
+    comp = []
+    for v in vs:
+        geom = FilledPolygon(v)
+        comp.append(geom)
+    return Compound(comp)
+
 def make_polygon(v, filled=True):
     if filled: return FilledPolygon(v)
     else: return PolyLine(v, True)

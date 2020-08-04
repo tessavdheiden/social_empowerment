@@ -27,7 +27,7 @@ from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revolute
 
 import gym
 from gym import spaces
-from gym.envs.box2d.car_dynamics import Car
+from multiagent.scenarios.car_dynamics import Car
 from gym.utils import colorize, seeding, EzPickle
 
 import pyglet
@@ -44,7 +44,7 @@ SCALE = 6.0             # Track scale
 TRACK_RAD = 900/SCALE   # Track is heavily morphed circle with this radius
 PLAYFIELD = 2000/SCALE  # Game over boundary
 FPS = 50                # Frames per second
-ZOOM = 2.7              # Camera zoom
+ZOOM = 0.7              # Camera zoom
 ZOOM_FOLLOW = True      # Set to False for fixed view (don't use zoom)
 
 
@@ -300,7 +300,8 @@ class CarRacing(gym.Env, EzPickle):
                 break
             if self.verbose == 1:
                 print("retry to generate track (normal if there are not many instances of this message)")
-        self.car = Car(self.world, *self.track[0][1:4])
+        self.car = Car()
+        self.car.make(*self.track[0][1:4], self.world)
 
         return self.step(None)[0]
 
