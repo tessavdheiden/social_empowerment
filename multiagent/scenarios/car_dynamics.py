@@ -47,12 +47,12 @@ WHEEL_WHITE = (0.3,0.3,0.3)
 MUD_COLOR   = (0.4,0.4,0.0)
 
 class Car(object):
-    def __init__(self):
+    def __init__(self, world):
         print("Car constructor")
         self.hull = None
         self.wheels = []
         self.fuel_spent = 0.0
-        #self.world = world
+        self.world = world
         #self.set(init_angle, init_x, init_y)
 
     @staticmethod
@@ -114,11 +114,11 @@ class Car(object):
             wheels.append(w)
         return wheels
 
-    def make(self, init_angle, init_x, init_y, world, color=(0.8,0.0,0.0)):
-        self.hull = self.make_hull(world, color)
+    def make(self, init_angle, init_x, init_y, color=(0.8,0.0,0.0)):
+        self.hull = self.make_hull(self.world, color)
         self.hull.position = (init_x, init_y)
         self.hull.angle = init_angle
-        self.wheels = self.make_wheels(self.hull, init_angle, init_x, init_y, world)
+        self.wheels = self.make_wheels(self.hull, init_angle, init_x, init_y, self.world)
 
         self.drawlist =  self.wheels + [self.hull]
         self.particles = []

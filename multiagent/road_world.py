@@ -71,6 +71,7 @@ class RoadWorld(World):
                 break
         self.shared_viewer = False
         self.top_views = []
+        self.car_physics=False
 
     def set_agents(self, agents):
         self.agents = agents
@@ -147,17 +148,7 @@ class RoadWorld(World):
 
         return self.top_views
 
-    def transform_action(self, u, agent):
-        action = DynamicAction()
-        if u[0] == 0 and u[1] == 0:     action.v = +agent.max_speed; action.r = 0
-        elif u[0] == 0 and u[1] < 0:    action.v = +agent.max_speed; action.r = .1
-        elif u[0] == 0 and u[1] > 0:    action.v = +agent.max_speed; action.r = -.1
-        elif u[0] < 0 and u[1] == 0:    action.v = +2*agent.max_speed; action.r = .1
-        elif u[0] > 0 and u[1] == 0:    action.v = +2*agent.max_speed; action.r = -.1
-        return action
-
     def propagate(self, agent):
-        agent.action = self.transform_action(agent.action.u, agent)
         agent.state.angle = agent.state.angle + agent.action.r
         agent.state.p_vel[0] = agent.action.v * np.cos(agent.state.angle + np.pi/2)
         agent.state.p_vel[1] = agent.action.v * np.sin(agent.state.angle + np.pi/2)
@@ -189,11 +180,18 @@ class RoadWorld(World):
         # gather forces applied to entities
         p_force = [None] * len(self.entities)
         # apply agent physical controls
-        #p_force = self.apply_action_force(p_force)
-        # apply environment forces
-        # p_force = self.apply_environment_force(p_force)
-        # integrate physical state
-        self.integrate_state(p_force)
+        if self.car_physics:
+            for agent in self.agents:
+                agent.transform_action_car_input()
+                agent.body.step(1.0 / FPS)
+            self.box2d.Step(1.0 / FPS, 6 * 30, 2 * 30)
+            for agent in self.agents:
+                agent.update_state()
+        else:
+            for agent in self.agents:
+                agent.transform_action()
+            self.integrate_state(p_force)
+
         # update agent state
         for agent in self.agents:
             self.update_agent_state(agent)

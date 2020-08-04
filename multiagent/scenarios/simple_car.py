@@ -28,7 +28,8 @@ class Scenario(BaseScenario):
             agent.collide = True
             agent.silent = True
             agent.color = colors[i]
-            agent.body = Car()
+            agent.body = Car(world.box2d)
+            agent.scale = SCALE
 
             agent.shape = [[(x * SIZE / SCALE, y * SIZE / SCALE) for x, y in HULL_POLY1],
                            [(x * SIZE / SCALE, y * SIZE / SCALE) for x, y in HULL_POLY2],
@@ -62,7 +63,7 @@ class Scenario(BaseScenario):
             agent.state.p_pos = norm_coord[idx]
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.angle = world.track[idx][1]
-            #agent.body.make(init_angle=world.track[start_i[i]][1], init_x=0, init_y=0, world=world.box2d, color=(0.8,0.0,0.0)) # TODO: set x, y
+            agent.body.make(*world.track[idx][1:4]) # TODO: set x, y
 
         # pure for visualizing the track
         for i, surface in enumerate(world.surfaces):

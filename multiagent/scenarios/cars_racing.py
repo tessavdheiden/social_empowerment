@@ -300,8 +300,8 @@ class CarRacing(gym.Env, EzPickle):
                 break
             if self.verbose == 1:
                 print("retry to generate track (normal if there are not many instances of this message)")
-        self.car = Car()
-        self.car.make(*self.track[0][1:4], self.world)
+        self.car = Car(self.world)
+        self.car.make(*self.track[0][1:4])
 
         return self.step(None)[0]
 
