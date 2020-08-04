@@ -43,7 +43,9 @@ MADDPG             | EMADDPG
 
 ### Cooperative Driving
 
-<img src="https://user-images.githubusercontent.com/24938569/89043030-2d56f100-d348-11ea-8066-4b2584595439.gif" width="400" />
+EMADDPG
+:-------------------------:
+<img src="https://user-images.githubusercontent.com/24938569/89291181-5c2bda80-d65a-11ea-8166-75539b6ae62c.gif" width="200" />
 
 Visual inputs:
 
