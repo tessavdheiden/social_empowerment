@@ -64,13 +64,25 @@ def run(config):
         torch.set_num_threads(config.n_training_threads)
     env = make_parallel_env(config.env_id, config.n_rollout_threads, config.seed,
                             config.discrete_action)
-    maddpg = MADDPG.init_from_env(env, agent_alg=config.agent_alg,
+
+    if config.run_num:
+        model_path = model_dir / f'run{config.run_num}'
+        maddpg = MADDPG.init_from_save(model_path / 'model.pt')
+        models_dir =  model_path / 'incremental'
+        ext_mods = [int(str(folder.name).split('model_ep')[1][:-3]) for folder in
+                         models_dir.iterdir() if
+                         str(folder.name).startswith('model_ep') and str(folder.name).endswith('.pt')]
+
+        ep_st = np.sort(ext_mods)[-1]
+    else:
+        maddpg = MADDPG.init_from_env(env, agent_alg=config.agent_alg,
                                   adversary_alg=config.adversary_alg,
                                   tau=config.tau,
                                   lr=config.lr,
                                   hidden_dim=config.hidden_dim,
                                   recurrent=config.recurrent,
                                   convolutional=config.convolutional)
+        ep_st = 0
     replay_buffer = ReplayBuffer(config.buffer_length, maddpg.nagents,
                                  [obsp.shape[0] for obsp in env.observation_space],
                                  [acsp.shape[0] if isinstance(acsp, Box) else acsp.n if isinstance(acsp, Discrete) else
@@ -79,7 +91,7 @@ def run(config):
 
     empowerment_modules = create_empowerment(config, maddpg.agents)
 
-    for ep_i in range(0, config.n_episodes, config.n_rollout_threads):
+    for ep_i in range(ep_st, config.n_episodes, config.n_rollout_threads):
         print("Episodes %i-%i of %i" % (ep_i + 1,
                                         ep_i + 1 + config.n_rollout_threads,
                                         config.n_episodes))
@@ -150,14 +162,17 @@ if __name__ == '__main__':
     parser.add_argument("model_name",
                         help="Name of directory to store " +
                              "model/training contents")
+    parser.add_argument("--run_num",
+                        default=0, type=int,
+                        help="Number of run to initialize saved model")
     parser.add_argument("--seed",
                         default=1, type=int,
                         help="Random seed")
-    parser.add_argument("--n_rollout_threads", default=4, type=int)
+    parser.add_argument("--n_rollout_threads", default=1, type=int)
     parser.add_argument("--n_training_threads", default=6, type=int)
     parser.add_argument("--buffer_length", default=int(1e6), type=int)
     parser.add_argument("--n_episodes", default=25000, type=int)
-    parser.add_argument("--episode_length", default=25, type=int)
+    parser.add_argument("--episode_length", default=50, type=int)
     parser.add_argument("--steps_per_update", default=100, type=int)
     parser.add_argument("--batch_size",
                         default=1024, type=int,
@@ -183,7 +198,6 @@ if __name__ == '__main__':
                         action='store_true')
     parser.add_argument("--joint_empowerment",
                         action='store_true')
-
     parser.add_argument("--transfer_empowerment",
                         action='store_true')
 
