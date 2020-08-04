@@ -33,7 +33,7 @@ tensorboard --logdir models/model_name
 ### Cooperative Communication
 DDPG              | MADDPG             | EMADDPG
 :-------------------------:|:-------------------------:|:-------------------------:
-<img src="https://user-images.githubusercontent.com/24938569/89288011-3bad5180-d655-11ea-8c5d-d3c895510985.gif" width="200" />|<img src="https://user-images.githubusercontent.com/24938569/89042658-91c58080-d347-11ea-8acc-92f1ef9a7b15.gif" width="200" />|<img src="https://user-images.githubusercontent.com/24938569/89042716-abff5e80-d347-11ea-9ff1-fed829d10d57.gif" width="200" />
+<img src="https://user-images.githubusercontent.com/24938569/89288011-3bad5180-d655-11ea-8c5d-d3c895510985.gif" width="200" />|<img src="https://user-images.githubusercontent.com/24938569/89042716-abff5e80-d347-11ea-9ff1-fed829d10d57.gif" width="200" />|<img src="https://user-images.githubusercontent.com/24938569/89042658-91c58080-d347-11ea-8acc-92f1ef9a7b15.gif" width="200" />
 
 ### Cooperative Coordination
 MADDPG             | EMADDPG
