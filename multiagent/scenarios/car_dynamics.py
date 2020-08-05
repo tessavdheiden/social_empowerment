@@ -53,7 +53,10 @@ class Car(object):
         self.wheels = []
         self.fuel_spent = 0.0
         self.world = world
-        #self.set(init_angle, init_x, init_y)
+        self.hull = self.make_hull(self.world, color=(0.8,0.0,0.0))
+        self.wheels = self.make_wheels(self.hull, self.world)
+        self.drawlist = self.wheels + [self.hull]
+        self.particles = []
 
     @staticmethod
     def make_hull(world, color):
@@ -69,7 +72,7 @@ class Car(object):
         return hull
 
     @staticmethod
-    def make_wheels(hull, init_angle, init_x, init_y, world):
+    def make_wheels(hull, world):
         wheels = []
         WHEEL_POLY = [
             (-WHEEL_W, +WHEEL_R), (+WHEEL_W, +WHEEL_R),
@@ -78,8 +81,6 @@ class Car(object):
         for wx, wy in WHEELPOS:
             front_k = 1.0 if wy > 0 else 1.0
             w = world.CreateDynamicBody(
-                position=(init_x + wx * SIZE, init_y + wy * SIZE),
-                angle=init_angle,
                 fixtures=fixtureDef(
                     shape=polygonShape(vertices=[(x * front_k * SIZE, y * front_k * SIZE) for x, y in WHEEL_POLY]),
                     density=0.1,
@@ -114,14 +115,12 @@ class Car(object):
             wheels.append(w)
         return wheels
 
-    def make(self, init_angle, init_x, init_y, color=(0.8,0.0,0.0)):
-        self.hull = self.make_hull(self.world, color)
+    def make(self, init_angle, init_x, init_y):
         self.hull.position = (init_x, init_y)
         self.hull.angle = init_angle
-        self.wheels = self.make_wheels(self.hull, init_angle, init_x, init_y, self.world)
-
-        self.drawlist =  self.wheels + [self.hull]
-        self.particles = []
+        for w, w_pos in zip(self.wheels, WHEELPOS):
+            w.position = (init_x + w_pos[0] * SIZE, init_y + w_pos[1] * SIZE)
+            w.angle = init_angle
 
     def apply_action(self, u):
         self.steer(-u[0])
