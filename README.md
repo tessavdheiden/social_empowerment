@@ -51,7 +51,7 @@ Visual inputs:
 
 Red Agent          | Green Agent
 :-------------------------:|:-------------------------:
-<img src="https://user-images.githubusercontent.com/24938569/89044659-8aec3d00-d34a-11ea-8617-69b0b3a1776c.gif" width="40" /> | <img src="https://user-images.githubusercontent.com/24938569/89044549-61331600-d34a-11ea-9c16-d02461694e40.gif" width="40" />
+<img src="https://user-images.githubusercontent.com/24938569/89423810-404a3680-d737-11ea-90a4-eb770f49d2cd.gif" width="40" /> | <img src="https://user-images.githubusercontent.com/24938569/89423739-2e689380-d737-11ea-91c0-3bbc108085e3.gif" width="40" />
 
 ### Cooperative Coordination
 
