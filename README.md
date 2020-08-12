@@ -65,8 +65,8 @@ Red Agent          | Green Agent
 
 |                          |DDPG                | MADDPG             
 :------------------------- |:-------------------------:|:-------------------------:
-Overtaking |<img src="https://user-images.githubusercontent.com/24938569/89404721-bdb37e00-d71a-11ea-93f8-b64af5de5bec.gif" width="200" />|<img src="https://user-images.githubusercontent.com/24938569/89404866-f6535780-d71a-11ea-8d25-00172886a9d8.gif" width="200" />
-Obstacle avoidance |<img src="https://user-images.githubusercontent.com/24938569/89886358-cbf71380-dbcc-11ea-8467-25ae2d6a7e78.gif" width="200" />|<img src="https://user-images.githubusercontent.com/24938569/89886414-e16c3d80-dbcc-11ea-9924-f1be94b94d06.gif" width="200" />
+Overtaking |<img src="https://user-images.githubusercontent.com/24938569/89404721-bdb37e00-d71a-11ea-93f8-b64af5de5bec.gif" width="400" />|<img src="https://user-images.githubusercontent.com/24938569/89404866-f6535780-d71a-11ea-8d25-00172886a9d8.gif" width="400" />
+Obstacle avoidance |<img src="https://user-images.githubusercontent.com/24938569/90010281-e3eb9780-dc9f-11ea-974a-5c5bb2d03e0d.gif" width="400" />|<img src="https://user-images.githubusercontent.com/24938569/90010260-ddf5b680-dc9f-11ea-85b7-66e447a5cae2.gif" width="400" />
 ### Cooperative Coordination
 
 | Agent     | Average dist. | Collisions % |

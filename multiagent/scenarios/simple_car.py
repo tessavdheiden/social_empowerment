@@ -38,7 +38,7 @@ class Scenario(BaseScenario):
             agent.size = SIZE
 
         world.agents[0].max_speed = .1
-        world.agents[1].max_speed = .2
+        world.agents[1].max_speed = .15
 
         world.surfaces = [Surface() for i in range(1)]
         for i, s in enumerate(world.surfaces):
