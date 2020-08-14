@@ -28,6 +28,7 @@ def run(config):
     else:
         maddpg = MADDPG.init_from_save(model_path)
     env = make_env(config.env_id, benchmark=True, discrete_action=maddpg.discrete_action)
+    env.world.seed(config.seed)
     maddpg.prep_rollouts(device='cpu')
     ifi = 1 / config.fps  # inter-frame interval
     all_infos = np.empty((config.n_episodes, config.episode_length, maddpg.nagents, 10))
@@ -43,7 +44,7 @@ def run(config):
             calc_start = time.time()
             # rearrange observations to be per agent, and convert to torch Variable
             torch_obs = [Variable(torch.Tensor(obs[i]).view(1, -1),
-                                  requires_grad=False)
+                                  requires_grad=False) if not obs[i].ndim == 4 else Variable(torch.Tensor(obs[i]), requires_grad=False)
                          for i in range(maddpg.nagents)]
 
             all_positions[ep_i, t_i] = env.get_positions()
@@ -97,7 +98,7 @@ if __name__ == '__main__':
                         help="Load incremental policy from given episode " +
                              "rather than final policy")
     parser.add_argument("--n_episodes", default=10, type=int)
-    parser.add_argument("--episode_length", default=25, type=int)
+    parser.add_argument("--episode_length", default=50, type=int)
     parser.add_argument("--fps", default=30, type=int)
     parser.add_argument("--mixed_policies", action="store_true")
 

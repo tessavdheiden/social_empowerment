@@ -83,8 +83,10 @@ def run(config):
                                   recurrent=config.recurrent,
                                   convolutional=config.convolutional)
         ep_st = 0
+
     replay_buffer = ReplayBuffer(config.buffer_length, maddpg.nagents,
-                                 [obsp.shape[0] for obsp in env.observation_space],
+                                 [obsp.shape[0] for obsp in env.observation_space] if not config.convolutional else
+                                 [obsp.shape for obsp in env.observation_space],
                                  [acsp.shape[0] if isinstance(acsp, Box) else acsp.n if isinstance(acsp, Discrete) else
                                  sum(acsp.high - acsp.low + 1) for acsp in env.action_space])
     t = 0
@@ -172,7 +174,7 @@ if __name__ == '__main__':
     parser.add_argument("--n_training_threads", default=6, type=int)
     parser.add_argument("--buffer_length", default=int(1e6), type=int)
     parser.add_argument("--n_episodes", default=25000, type=int)
-    parser.add_argument("--episode_length", default=50, type=int)
+    parser.add_argument("--episode_length", default=25, type=int)
     parser.add_argument("--steps_per_update", default=100, type=int)
     parser.add_argument("--batch_size",
                         default=1024, type=int,

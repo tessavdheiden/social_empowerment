@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from gym.spaces import Box, Discrete, MultiDiscrete
-from utils.networks import MLPNetwork
+from utils.networks import MLPNetwork, ConvolutionalUnit
 from utils.misc import soft_update, average_gradients, onehot_from_logits, gumbel_softmax
 from utils.agents import DDPGAgent
 
@@ -35,7 +35,6 @@ class MADDPG(object):
         self.alg_types = alg_types
         self.agents = [DDPGAgent(lr=lr, discrete_action=discrete_action,
                                  hidden_dim=hidden_dim, recurrent=recurrent,
-                                 convolutional=convolutional,
                                  **params)
                        for params in agent_init_params]
         self.agent_init_params = agent_init_params
@@ -48,6 +47,11 @@ class MADDPG(object):
         self.trgt_pol_dev = 'cpu'  # device for target policies
         self.trgt_critic_dev = 'cpu'  # device for target critics
         self.niter = 0
+        self.convolutional = convolutional
+        if convolutional:
+            self.embedding = ConvolutionalUnit()
+        else:
+            self.embedding = lambda x: x
 
     @property
     def policies(self):
@@ -79,6 +83,7 @@ class MADDPG(object):
         Outputs:
             actions: List of actions for each agent
         """
+        observations = [self.embedding(obs) for obs in observations]
         return [a.step(obs, explore=explore) for a, obs in zip(self.agents,
                                                                  observations)]
 
@@ -97,6 +102,9 @@ class MADDPG(object):
         """
         obs, acs, rews, emps, next_obs, dones = sample
         curr_agent = self.agents[agent_i]
+
+        obs = [self.embedding(o) for o in obs]
+        next_obs = [self.embedding(o) for o in next_obs]
 
         curr_agent.critic_optimizer.zero_grad()
         if self.alg_types[agent_i] == 'MADDPG':
@@ -125,7 +133,7 @@ class MADDPG(object):
             vf_in = torch.cat((obs[agent_i], acs[agent_i]), dim=1)
         actual_value = curr_agent.critic(vf_in)
         vf_loss = MSELoss(actual_value, target_value.detach())
-        vf_loss.backward()
+        vf_loss.backward(retain_graph=True) if self.convolutional else vf_loss.backward()   # TODO: avoid this
         if parallel:
             average_gradients(curr_agent.critic)
         torch.nn.utils.clip_grad_norm(curr_agent.critic.parameters(), 0.5)

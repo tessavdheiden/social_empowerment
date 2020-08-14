@@ -7,8 +7,7 @@ class MLPNetwork(nn.Module):
     MLP network (can be used as value or policy)
     """
     def __init__(self, input_dim, out_dim, hidden_dim=64, nonlin=F.relu,
-                 constrain_out=False, norm_in=True, discrete_action=True, recurrent=False,
-                 convolutional=False):
+                 constrain_out=False, norm_in=True, discrete_action=True, recurrent=False):
         """
         Inputs:
             input_dim (int): Number of dimensions in input
@@ -24,10 +23,8 @@ class MLPNetwork(nn.Module):
             self.in_fn.bias.data.fill_(0)
         else:
             self.in_fn = lambda x: x
-        if convolutional:
-            self.fc1 = ConvolutionalUnit(input_dim, hidden_dim)
-        else:
-            self.fc1 = nn.Linear(input_dim, hidden_dim)
+
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
 
         if recurrent:
             self.fc2 = RecurrentUnit(hidden_dim, hidden_dim)
@@ -76,25 +73,22 @@ class RecurrentUnit(nn.Module):
 
 
 class ConvolutionalUnit(nn.Module):
-    def __init__(self, input_dim, out_dim):
+    def __init__(self):
         super(ConvolutionalUnit, self).__init__()
-        self.hidden_dim = 16
-        self.cnn = nn.Sequential(  # input shape (4, 96, 96)
-            nn.Conv2d(1, 2, kernel_size=4, stride=2),
+        self.hidden_dim = 64
+        self.out_dim = 4
+        #layer_helper = lambda i, k, s: (i - k) / s + 1
+        self.cnn = nn.Sequential(  # input shape (4, 16, 16)
+            nn.Conv2d(4, 8, kernel_size=4, stride=2),       # out  (8, 7, 7)
             nn.ReLU(),  # activation
-            nn.Conv2d(2, 4, kernel_size=3, stride=2),  # (8, 47, 47)
+            nn.Conv2d(8, 16, kernel_size=3, stride=1),      # out  (16, 5, 5)
             nn.ReLU(),  # activation
-            nn.Conv2d(4, 8, kernel_size=3, stride=2),  # (16, 23, 23)
+            nn.Conv2d(16, 32, kernel_size=3, stride=1),     # out (16, 3, 3)
             nn.ReLU(),  # activation
-            nn.Conv2d(8, 16, kernel_size=3, stride=2),  # (32, 11, 11)
+            nn.Conv2d(32, 64, kernel_size=3, stride=1),     # out (64, 1, 1)
             nn.ReLU(),  # activation
-            nn.Conv2d(16, 32, kernel_size=3, stride=1),  # (64, 5, 5)
-            nn.ReLU(),  # activation
-            nn.Conv2d(32, self.hidden_dim, kernel_size=3, stride=1),  # (128, 3, 3)
-            nn.ReLU(),  # activation
-        )  # output shape (256, 1, 1)
-
-        self.fc = nn.Sequential(nn.Linear(self.hidden_dim, out_dim), nn.ReLU())
+        )
+        self.fc = nn.Sequential(nn.Linear(self.hidden_dim, self.out_dim), nn.ReLU())
         self.apply(self._weights_init)
 
     @staticmethod
@@ -104,8 +98,7 @@ class ConvolutionalUnit(nn.Module):
             nn.init.constant_(m.bias, 0.1)
 
     def forward(self, x):
-        batch_size, feat_dim = x.shape
-        w = int(feat_dim ** .5)
-        x = self.cnn(x.view(batch_size, 1, w, w))
+        batch, channels, w, h = x.shape
+        x = self.cnn(x.view(batch, channels, w, h))
         x = x.view(-1, self.hidden_dim)
         return self.fc(x)
