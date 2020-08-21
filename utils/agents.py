@@ -1,7 +1,7 @@
 from torch import Tensor
 from torch.autograd import Variable
 from torch.optim import Adam
-from .networks import MLPNetwork
+from .networks import MLPNetwork, DMLPNetwork
 from .misc import hard_update, gumbel_softmax, onehot_from_logits
 from .noise import OUNoise
 
@@ -11,7 +11,7 @@ class DDPGAgent(object):
     critic, exploration noise)
     """
     def __init__(self, num_in_pol, num_out_pol, num_in_critic, hidden_dim=64,
-                 lr=0.01, discrete_action=True, recurrent=False):
+                 lr=0.01, discrete_action=True, recurrent=False, convolutional=False, n_agents=3):
         """
         Inputs:
             num_in_pol (int): number of dimensions for policy input
@@ -23,19 +23,34 @@ class DDPGAgent(object):
                                  constrain_out=True,
                                  discrete_action=discrete_action,
                                  recurrent=recurrent)
-        self.critic = MLPNetwork(num_in_critic, 1,
-                                 hidden_dim=hidden_dim,
-                                 constrain_out=False,
-                                 recurrent=recurrent)
         self.target_policy = MLPNetwork(num_in_pol, num_out_pol,
                                         hidden_dim=hidden_dim,
                                         constrain_out=True,
                                         discrete_action=discrete_action,
                                         recurrent=recurrent)
-        self.target_critic = MLPNetwork(num_in_critic, 1,
-                                        hidden_dim=hidden_dim,
-                                        constrain_out=False,
-                                        recurrent=recurrent)
+        if convolutional:
+            num_in_a = (num_in_critic // n_agents - num_in_pol) * n_agents
+            num_in_s = num_in_pol * n_agents
+
+            self.critic = DMLPNetwork(num_in_a, num_in_s, 1,
+                                 hidden_dim=hidden_dim,
+                                 constrain_out=False,
+                                 recurrent=recurrent)
+            self.target_critic = DMLPNetwork(num_in_a, num_in_s, 1,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=False,
+                                            recurrent=recurrent)
+        else:
+            self.critic = MLPNetwork(num_in_critic, 1,
+                                 hidden_dim=hidden_dim,
+                                 constrain_out=False,
+                                 recurrent=recurrent)
+            self.target_critic = MLPNetwork(num_in_critic, 1,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=False,
+                                            recurrent=recurrent)
+
+
         hard_update(self.target_policy, self.policy)
         hard_update(self.target_critic, self.critic)
         self.policy_optimizer = Adam(self.policy.parameters(), lr=lr)

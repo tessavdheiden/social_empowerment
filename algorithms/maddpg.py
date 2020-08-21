@@ -35,6 +35,7 @@ class MADDPG(object):
         self.alg_types = alg_types
         self.agents = [DDPGAgent(lr=lr, discrete_action=discrete_action,
                                  hidden_dim=hidden_dim, recurrent=recurrent,
+                                 convolutional=convolutional,
                                  **params)
                        for params in agent_init_params]
         self.agent_init_params = agent_init_params
@@ -48,10 +49,7 @@ class MADDPG(object):
         self.trgt_critic_dev = 'cpu'  # device for target critics
         self.niter = 0
         self.convolutional = convolutional
-        if convolutional:
-            self.embedding = ConvolutionalUnit()
-        else:
-            self.embedding = lambda x: x
+
 
     @property
     def policies(self):
@@ -83,7 +81,6 @@ class MADDPG(object):
         Outputs:
             actions: List of actions for each agent
         """
-        observations = [self.embedding(obs) for obs in observations]
         return [a.step(obs, explore=explore) for a, obs in zip(self.agents,
                                                                  observations)]
 
@@ -103,9 +100,6 @@ class MADDPG(object):
         obs, acs, rews, emps, next_obs, dones = sample
         curr_agent = self.agents[agent_i]
 
-        obs = [self.embedding(o) for o in obs]
-        next_obs = [self.embedding(o) for o in next_obs]
-
         curr_agent.critic_optimizer.zero_grad()
         if self.alg_types[agent_i] == 'MADDPG':
             if self.discrete_action: # one-hot encode action
@@ -123,6 +117,10 @@ class MADDPG(object):
                 trgt_vf_in = torch.cat((next_obs[agent_i],
                                         curr_agent.target_policy(next_obs[agent_i])),
                                        dim=1)
+        if self.convolutional:
+            split = obs[0][0].shape[0] * self.nagents
+            trgt_vf_in = (trgt_vf_in[:, :split], trgt_vf_in[:, split:])
+
         target_value = (rews[agent_i].view(-1, 1) + emps[agent_i].view(-1, 1) + self.gamma *
                         curr_agent.target_critic(trgt_vf_in) *
                         (1 - dones[agent_i].view(-1, 1)))
@@ -131,9 +129,14 @@ class MADDPG(object):
             vf_in = torch.cat((*obs, *acs), dim=1)
         else:  # DDPG
             vf_in = torch.cat((obs[agent_i], acs[agent_i]), dim=1)
+
+        if self.convolutional:
+            split = obs[0][0].shape[0] * self.nagents
+            vf_in = (vf_in[:, :split], vf_in[:, split:])
+
         actual_value = curr_agent.critic(vf_in)
         vf_loss = MSELoss(actual_value, target_value.detach())
-        vf_loss.backward(retain_graph=True) if self.convolutional else vf_loss.backward()   # TODO: avoid this
+        vf_loss.backward()
         if parallel:
             average_gradients(curr_agent.critic)
         torch.nn.utils.clip_grad_norm(curr_agent.critic.parameters(), 0.5)
@@ -165,6 +168,10 @@ class MADDPG(object):
         else:  # DDPG
             vf_in = torch.cat((obs[agent_i], curr_pol_vf_in),
                               dim=1)
+        if self.convolutional:
+            split = obs[0][0].shape[0] * self.nagents
+            vf_in = (vf_in[:, :split], vf_in[:, split:])
+
         pol_loss = -curr_agent.critic(vf_in).mean()
         pol_loss += (curr_pol_out**2).mean() * 1e-3
         pol_loss.backward()
@@ -189,7 +196,7 @@ class MADDPG(object):
         self.niter += 1
 
     def prep_training(self, device='gpu'):
-        for a in self.agents:
+        for i, a in enumerate(self.agents):
             a.policy.train()
             a.critic.train()
             a.target_policy.train()
@@ -216,7 +223,7 @@ class MADDPG(object):
             self.trgt_critic_dev = device
 
     def prep_rollouts(self, device='cpu'):
-        for a in self.agents:
+        for i, a in enumerate(self.agents):
             a.policy.eval()
         if device == 'gpu':
             fn = lambda x: x.cuda()
