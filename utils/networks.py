@@ -7,7 +7,7 @@ class MLPNetwork(nn.Module):
     MLP network (can be used as value or policy)
     """
     def __init__(self, input_dim, out_dim, hidden_dim=64, nonlin=F.relu,
-                 constrain_out=False, norm_in=True, discrete_action=True, recurrent=False):
+                 constrain_out=False, norm_in=True, discrete_action=True, recurrent=False, convolutional=False):
         """
         Inputs:
             input_dim (int): Number of dimensions in input
@@ -16,6 +16,12 @@ class MLPNetwork(nn.Module):
             nonlin (PyTorch function): Nonlinearity to apply to hidden layers
         """
         super(MLPNetwork, self).__init__()
+
+        if convolutional:
+            self.emb = ConvolutionalUnit(input_dim=4)
+            input_dim = hidden_dim
+        else:
+            self.emb = lambda x: x
 
         if norm_in:  # normalize inputs
             self.in_fn = nn.BatchNorm1d(input_dim)
@@ -47,6 +53,7 @@ class MLPNetwork(nn.Module):
         Outputs:
             out (PyTorch Matrix): Output of network (actions, values, etc)
         """
+        X = self.emb(X)
         h1 = self.nonlin(self.fc1(self.in_fn(X)))
         h2 = self.nonlin(self.fc2(h1))
         out = self.out_fn(self.fc3(h2))
@@ -58,7 +65,7 @@ class DMLPNetwork(nn.Module):
     MLP network (can be used as value or policy)
     """
     def __init__(self, input_a_dim, input_x_dim, out_dim, hidden_dim=64, nonlin=F.relu,
-                 constrain_out=False, norm_in=True, discrete_action=True, recurrent=False):
+                 constrain_out=False, norm_in=True, discrete_action=True, recurrent=False, convolutional=False):
         """
         Inputs:
             input_dim (int): Number of dimensions in input
@@ -67,16 +74,24 @@ class DMLPNetwork(nn.Module):
             nonlin (PyTorch function): Nonlinearity to apply to hidden layers
         """
         super(DMLPNetwork, self).__init__()
-        self.emb = nn.Linear(input_x_dim, hidden_dim)
+
+        if convolutional:
+            self.embS = ConvolutionalUnit(input_dim=input_x_dim)
+            input_dim = hidden_dim + input_a_dim
+        else:
+            self.embS = nn.Linear(input_x_dim, hidden_dim)
+            input_dim = hidden_dim + input_a_dim
+
+        self.embA = nn.Linear(input_a_dim, input_a_dim)
 
         if norm_in:  # normalize inputs
-            self.in_fn = nn.BatchNorm1d(hidden_dim + input_a_dim)
+            self.in_fn = nn.BatchNorm1d(input_dim)
             self.in_fn.weight.data.fill_(1)
             self.in_fn.bias.data.fill_(0)
         else:
             self.in_fn = lambda x: x
 
-        self.fc1 = nn.Linear(hidden_dim + input_a_dim, hidden_dim)
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
 
         if recurrent:
             self.fc2 = RecurrentUnit(hidden_dim, hidden_dim)
@@ -100,8 +115,9 @@ class DMLPNetwork(nn.Module):
             out (PyTorch Matrix): Output of network (actions, values, etc)
         """
         (S, A) = (I[0], I[1])
-        X = self.emb(S)
-        X = torch.cat((X, A), dim=1)
+        S = self.embS(S)
+        A = self.embA(A)
+        X = torch.cat((S, A), dim=1)
         h1 = self.nonlin(self.fc1(self.in_fn(X)))
         h2 = self.nonlin(self.fc2(h1))
         out = self.out_fn(self.fc3(h2))
@@ -128,13 +144,14 @@ class RecurrentUnit(nn.Module):
 
 
 class ConvolutionalUnit(nn.Module):
-    def __init__(self):
+    def __init__(self, input_dim):
         super(ConvolutionalUnit, self).__init__()
         self.hidden_dim = 64
-        self.out_dim = 4
+        self.out_dim = 64
+        self.input_dim = input_dim
         #layer_helper = lambda i, k, s: (i - k) / s + 1
         self.cnn = nn.Sequential(  # input shape (4, 16, 16)
-            nn.Conv2d(4, 8, kernel_size=4, stride=2),       # out  (8, 7, 7)
+            nn.Conv2d(self.input_dim, 8, kernel_size=4, stride=2),       # out  (8, 7, 7)
             nn.ReLU(),  # activation
             nn.Conv2d(8, 16, kernel_size=3, stride=1),      # out  (16, 5, 5)
             nn.ReLU(),  # activation

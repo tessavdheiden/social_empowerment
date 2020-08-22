@@ -11,7 +11,7 @@ class DDPGAgent(object):
     critic, exploration noise)
     """
     def __init__(self, num_in_pol, num_out_pol, num_in_critic, hidden_dim=64,
-                 lr=0.01, discrete_action=True, recurrent=False, convolutional=False, n_agents=3):
+                 lr=0.01, discrete_action=True, recurrent=False, convolutional=False, n_agents=1):
         """
         Inputs:
             num_in_pol (int): number of dimensions for policy input
@@ -19,36 +19,40 @@ class DDPGAgent(object):
             num_in_critic (int): number of dimensions for critic input
         """
         self.policy = MLPNetwork(num_in_pol, num_out_pol,
-                                 hidden_dim=hidden_dim,
-                                 constrain_out=True,
-                                 discrete_action=discrete_action,
-                                 recurrent=recurrent)
+                                hidden_dim=hidden_dim,
+                                constrain_out=True,
+                                discrete_action=discrete_action,
+                                recurrent=recurrent,
+                                convolutional=convolutional)
         self.target_policy = MLPNetwork(num_in_pol, num_out_pol,
-                                        hidden_dim=hidden_dim,
-                                        constrain_out=True,
-                                        discrete_action=discrete_action,
-                                        recurrent=recurrent)
+                                hidden_dim=hidden_dim,
+                                constrain_out=True,
+                                discrete_action=discrete_action,
+                                recurrent=recurrent,
+                                convolutional=convolutional)
         if convolutional:
             num_in_a = (num_in_critic // n_agents - num_in_pol) * n_agents
             num_in_s = num_in_pol * n_agents
-
+            print(f'INFO: number of     agents = {n_agents}')
             self.critic = DMLPNetwork(num_in_a, num_in_s, 1,
-                                 hidden_dim=hidden_dim,
-                                 constrain_out=False,
-                                 recurrent=recurrent)
+                                hidden_dim=hidden_dim,
+                                constrain_out=False,
+                                recurrent=recurrent,
+                                convolutional=convolutional)
             self.target_critic = DMLPNetwork(num_in_a, num_in_s, 1,
-                                            hidden_dim=hidden_dim,
-                                            constrain_out=False,
-                                            recurrent=recurrent)
+                                hidden_dim=hidden_dim,
+                                constrain_out=False,
+                                recurrent=recurrent,
+                                convolutional=convolutional)
         else:
             self.critic = MLPNetwork(num_in_critic, 1,
-                                 hidden_dim=hidden_dim,
-                                 constrain_out=False,
-                                 recurrent=recurrent)
+                                hidden_dim=hidden_dim,
+                                constrain_out=False,
+                                recurrent=recurrent)
             self.target_critic = MLPNetwork(num_in_critic, 1,
-                                            hidden_dim=hidden_dim,
-                                            constrain_out=False,
-                                            recurrent=recurrent)
+                                hidden_dim=hidden_dim,
+                                constrain_out=False,
+                                recurrent=recurrent)
 
 
         hard_update(self.target_policy, self.policy)

@@ -108,7 +108,13 @@ class MADDPG(object):
             else:
                 all_trgt_acs = [pi(nobs) for pi, nobs in zip(self.target_policies,
                                                              next_obs)]
-            trgt_vf_in = torch.cat((*next_obs, *all_trgt_acs), dim=1)
+
+            if self.convolutional:
+                S = torch.cat((next_obs), dim=1)
+                A = torch.cat((all_trgt_acs), dim=1)
+                trgt_vf_in = (S, A)
+            else:
+                trgt_vf_in = torch.cat((*next_obs, *all_trgt_acs), dim=1)
         else:  # DDPG
             if self.discrete_action:
                 trgt_vf_in = torch.cat((next_obs[agent_i],onehot_from_logits(curr_agent.target_policy(next_obs[agent_i]))),
@@ -117,22 +123,18 @@ class MADDPG(object):
                 trgt_vf_in = torch.cat((next_obs[agent_i],
                                         curr_agent.target_policy(next_obs[agent_i])),
                                        dim=1)
-        if self.convolutional:
-            split = obs[0][0].shape[0] * self.nagents
-            trgt_vf_in = (trgt_vf_in[:, :split], trgt_vf_in[:, split:])
 
         target_value = (rews[agent_i].view(-1, 1) + emps[agent_i].view(-1, 1) + self.gamma *
                         curr_agent.target_critic(trgt_vf_in) *
                         (1 - dones[agent_i].view(-1, 1)))
 
         if self.alg_types[agent_i] == 'MADDPG':
-            vf_in = torch.cat((*obs, *acs), dim=1)
+            if self.convolutional:
+                vf_in = (torch.cat((obs), dim=1), torch.cat((acs), dim=1))
+            else:
+                vf_in = torch.cat((*obs, *acs), dim=1)
         else:  # DDPG
             vf_in = torch.cat((obs[agent_i], acs[agent_i]), dim=1)
-
-        if self.convolutional:
-            split = obs[0][0].shape[0] * self.nagents
-            vf_in = (vf_in[:, :split], vf_in[:, split:])
 
         actual_value = curr_agent.critic(vf_in)
         vf_loss = MSELoss(actual_value, target_value.detach())
@@ -164,14 +166,14 @@ class MADDPG(object):
                     all_pol_acs.append(onehot_from_logits(pi(ob)))
                 else:
                     all_pol_acs.append(pi(ob))
-            vf_in = torch.cat((*obs, *all_pol_acs), dim=1)
+
+            if self.convolutional:
+                vf_in = (torch.cat((obs), dim=1), torch.cat((all_pol_acs), dim=1))
+            else:
+                vf_in = torch.cat((*obs, *all_pol_acs), dim=1)
         else:  # DDPG
             vf_in = torch.cat((obs[agent_i], curr_pol_vf_in),
                               dim=1)
-        if self.convolutional:
-            split = obs[0][0].shape[0] * self.nagents
-            vf_in = (vf_in[:, :split], vf_in[:, split:])
-
         pol_loss = -curr_agent.critic(vf_in).mean()
         pol_loss += (curr_pol_out**2).mean() * 1e-3
         pol_loss.backward()
