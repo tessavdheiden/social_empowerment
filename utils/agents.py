@@ -11,7 +11,7 @@ class DDPGAgent(object):
     critic, exploration noise)
     """
     def __init__(self, num_in_pol, num_out_pol, num_in_critic, hidden_dim=64,
-                 lr=0.01, discrete_action=True, recurrent=False, convolutional=False, n_agents=1):
+                 lr=0.01, discrete_action=True, recurrent=False, convolutional=False, n_agents=2):
         """
         Inputs:
             num_in_pol (int): number of dimensions for policy input
@@ -33,7 +33,7 @@ class DDPGAgent(object):
         if convolutional:
             num_in_a = (num_in_critic // n_agents - num_in_pol) * n_agents
             num_in_s = num_in_pol * n_agents
-            print(f'INFO: number of     agents = {n_agents}')
+
             self.critic = DMLPNetwork(num_in_a, num_in_s, 1,
                                 hidden_dim=hidden_dim,
                                 constrain_out=False,

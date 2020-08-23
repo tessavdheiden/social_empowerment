@@ -49,22 +49,23 @@ class Scenario(BaseScenario):
             s.movable = False
 
         # make initial conditions
+        world.reset()
         self.reset_world(world)
         return world
 
     def reset_world(self, world):
-        world.reset()
         coord = np.array(world.track)[:, 2:4]
         norm_coord = np.array([(c[0] / SCALE, c[1] / SCALE) for c in coord])
 
         # all agents start somewhere
         start_i = np.random.choice(len(coord))
         dist = 5
+        delta_angle = np.random.choice(2) * np.pi
         for i, agent in enumerate(world.agents):
             idx = (start_i - i * dist) % len(coord)
             agent.state.p_pos = norm_coord[idx]
             agent.state.p_vel = np.zeros(world.dim_p)
-            agent.state.angle = world.track[idx][1]
+            agent.state.angle = world.track[idx][1] + delta_angle
             agent.body.make(*world.track[idx][1:4]) # TODO: set x, y
 
         # pure for visualizing the track
@@ -89,10 +90,10 @@ class Scenario(BaseScenario):
         c, w, h = view.shape
         rew /= (c*w*h)
         rew = np.sum(rew)
-        if agent.collide:
-            for a in world.agents:
-                if self.is_collision(a, agent):
-                    rew -= 1
+        # if agent.collide:
+        #     for a in world.agents:
+        #         if self.is_collision(a, agent):
+        #             rew -= 1
         return rew
 
     @staticmethod
