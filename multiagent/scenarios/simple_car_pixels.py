@@ -1,7 +1,8 @@
 import numpy as np
 from multiagent.core import Surface
 from multiagent.dynamic_agent import DynamicAgent
-from multiagent.road_world import RoadWorld, ROAD_COLOR, TRACK_RAD
+from multiagent.road_world import RoadWorld
+from multiagent.scenarios.road_creator import ROAD_COLOR, TRACK_RAD
 from multiagent.scenario import BaseScenario
 from multiagent.scenarios.car_dynamics import Car, HULL_POLY1, HULL_POLY2, HULL_POLY3, HULL_POLY4, SIZE
 import scipy.ndimage
@@ -42,7 +43,7 @@ class Scenario(BaseScenario):
         world.agents[0].max_speed = .1
         world.agents[1].max_speed = .15
 
-        world.surfaces = [Surface() for i in range(1)]
+        world.surfaces = [Surface() for i in range(2)]
         for i, s in enumerate(world.surfaces):
             s.name = 'surface %d' % i
             s.collide = False
@@ -70,11 +71,14 @@ class Scenario(BaseScenario):
 
         # pure for visualizing the track
         for i, surface in enumerate(world.surfaces):
-            surface.color = np.array([color for (_, color) in world.road_poly])
+            #surface.color = np.array([color for (_, color) in world.road_poly])
+            surface.color = np.array([color for poly, color, id, lane in world.road_poly if lane == i])
             surface.state.p_pos = np.zeros(world.dim_p)
             surface.state.p_vel = np.zeros(world.dim_p)
-            surface.poly = np.array([[(c_i[0] / SCALE, c_i[1] / SCALE) for c_i in coordinates] for (coordinates, _) in world.road_poly])
-            surface.v = np.mean(surface.poly[:, 0:2], axis=1)
+            #surface.poly = np.array([[(c_i[0] / SCALE, c_i[1] / SCALE) for c_i in coordinates] for (coordinates, _) in world.road_poly])
+            surface.poly = np.array([[(c_i[0] / SCALE, c_i[1] / SCALE) for c_i in poly] for poly, color, id, lane in world.road_poly if lane == i])
+            # surface.v = np.mean(surface.poly[:, 0:2], axis=1)
+
 
     def is_collision(self, agent1, agent2):
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
