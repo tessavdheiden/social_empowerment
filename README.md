@@ -67,6 +67,9 @@ Red Agent          | Green Agent
 :------------------------- |:-------------------------:|:-------------------------:
 Overtaking |<img src="https://user-images.githubusercontent.com/24938569/89404721-bdb37e00-d71a-11ea-93f8-b64af5de5bec.gif" width="400" />|<img src="https://user-images.githubusercontent.com/24938569/89404866-f6535780-d71a-11ea-8d25-00172886a9d8.gif" width="400" />
 Obstacle avoidance |<img src="https://user-images.githubusercontent.com/24938569/90010281-e3eb9780-dc9f-11ea-974a-5c5bb2d03e0d.gif" width="400" />|<img src="https://user-images.githubusercontent.com/24938569/90010260-ddf5b680-dc9f-11ea-85b7-66e447a5cae2.gif" width="400" />
+Junctions |<img src="https://user-images.githubusercontent.com/24938569/91639279-add74300-ea15-11ea-99cc-5b29628e6f1b.gif" width="400" />|<img src="https://user-images.githubusercontent.com/24938569/91639258-91d3a180-ea15-11ea-885e-50008a9b3c60.gif" width="400" />
+
+
 ### Cooperative Coordination
 
 | Agent     | Average dist. | Collisions % |

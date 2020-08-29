@@ -31,6 +31,7 @@ BORDER = 8/SCALE
 BORDER_MIN_COUNT = 4
 
 ROAD_COLOR = [0.4, 0.4, 0.4]
+SHOW_JOINTS               = 0       # Shows joints in white
 
 class RoadCreator(gym.Env, EzPickle):
 

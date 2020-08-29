@@ -71,13 +71,10 @@ class Scenario(BaseScenario):
 
         # pure for visualizing the track
         for i, surface in enumerate(world.surfaces):
-            #surface.color = np.array([color for (_, color) in world.road_poly])
             surface.color = np.array([color for poly, color, id, lane in world.road_poly if lane == i])
             surface.state.p_pos = np.zeros(world.dim_p)
             surface.state.p_vel = np.zeros(world.dim_p)
-            #surface.poly = np.array([[(c_i[0] / SCALE, c_i[1] / SCALE) for c_i in coordinates] for (coordinates, _) in world.road_poly])
             surface.poly = np.array([[(c_i[0] / SCALE, c_i[1] / SCALE) for c_i in poly] for poly, color, id, lane in world.road_poly if lane == i])
-            # surface.v = np.mean(surface.poly[:, 0:2], axis=1)
 
 
     def is_collision(self, agent1, agent2):
