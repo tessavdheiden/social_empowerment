@@ -22,7 +22,7 @@ class Scenario(BaseScenario):
         world.collaborative = True
 
         # add agents
-        num_agents = 2
+        num_agents = 3
         n_frames = 4
         world.set_agents([DynamicAgent() for i in range(num_agents)])
         for i, agent in enumerate(world.agents):
@@ -40,8 +40,9 @@ class Scenario(BaseScenario):
             agent.size = SIZE
             self.stacks = [[self.rgb2gray(world.get_views()[i])] * n_frames for i in range(len(world.agents))]
 
-        world.agents[0].max_speed = .1
-        world.agents[1].max_speed = .15
+        world.agents[0].max_speed = .05
+        world.agents[1].max_speed = .10
+        world.agents[2].max_speed = .15
 
         world.surfaces = [Surface() for i in range(2)]
         for i, s in enumerate(world.surfaces):
