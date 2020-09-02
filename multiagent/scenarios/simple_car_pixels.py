@@ -1,7 +1,7 @@
 import numpy as np
 from multiagent.core import Surface
 from multiagent.dynamic_agent import DynamicAgent
-from multiagent.road_world import RoadWorld
+from multiagent.road_world import RoadWorld, STATE_H, STATE_W
 from multiagent.scenarios.road_creator import ROAD_COLOR, TRACK_RAD
 from multiagent.scenario import BaseScenario
 from multiagent.scenarios.car_dynamics import Car, HULL_POLY1, HULL_POLY2, HULL_POLY3, HULL_POLY4, SIZE
@@ -22,7 +22,7 @@ class Scenario(BaseScenario):
         world.collaborative = True
 
         # add agents
-        num_agents = 3
+        num_agents = 2
         n_frames = 4
         world.set_agents([DynamicAgent() for i in range(num_agents)])
         for i, agent in enumerate(world.agents):
@@ -38,17 +38,19 @@ class Scenario(BaseScenario):
                            [(x * SIZE / SCALE, y * SIZE / SCALE) for x, y in HULL_POLY3],
                            [(x * SIZE / SCALE, y * SIZE / SCALE) for x, y in HULL_POLY4]]
             agent.size = SIZE
-            self.stacks = [[self.rgb2gray(world.get_views()[i])] * n_frames for i in range(len(world.agents))]
 
-        world.agents[0].max_speed = .05
-        world.agents[1].max_speed = .10
-        world.agents[2].max_speed = .15
+        self.stacks = [[self.rgb2gray(world.get_views()[i])] * n_frames for i in range(len(world.agents))]
+
+        world.agents[0].max_speed = .1
+        world.agents[1].max_speed = .15
 
         world.surfaces = [Surface() for i in range(2)]
         for i, s in enumerate(world.surfaces):
             s.name = 'surface %d' % i
             s.collide = False
             s.movable = False
+
+        self.mask = create_circular_mask(STATE_H, STATE_W)
 
         # make initial conditions
         world.reset()
@@ -62,9 +64,10 @@ class Scenario(BaseScenario):
         # all agents start somewhere
         start_i = np.random.choice(len(coord))
         dist = 5
-        delta_angle = np.random.choice(2) * np.pi
+        orient_clockwise = np.random.choice(2)
+        delta_angle = orient_clockwise * np.pi
         for i, agent in enumerate(world.agents):
-            idx = (start_i - i * dist) % len(coord)
+            idx = (start_i - i * dist) % len(coord) if orient_clockwise == 0. else (start_i + i * dist) % len(coord)
             agent.state.p_pos = norm_coord[idx]
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.angle = world.track[idx][1] + delta_angle
@@ -86,9 +89,11 @@ class Scenario(BaseScenario):
 
     def reward(self, agent, world):
         rew = 0.
+
         for view in world.top_views:
             for road_color, road_patch in zip(ROAD_COLOR, view.transpose(2, 1, 0)):
-                rew -= abs(road_color - road_patch / 255.)
+                rew -= abs(road_color - road_patch / 255.) * self.mask
+
         c, w, h = view.shape
         rew /= (c*w*h)
         rew = np.sum(rew)
@@ -122,3 +127,9 @@ class Scenario(BaseScenario):
     def benchmark_data(self, agent, world):
         return (self.reward(agent, world), )
 
+
+def create_circular_mask(h, w):
+    center = (int(w / 2), int(h / 2))
+
+    Y, X = np.ogrid[:h, :w]
+    return np.sqrt((X - center[0]) ** 2 + (Y - center[1]) ** 2)
