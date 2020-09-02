@@ -117,8 +117,12 @@ class MADDPG(object):
                 trgt_vf_in = torch.cat((*next_obs, *all_trgt_acs), dim=1)
         else:  # DDPG
             if self.discrete_action:
-                trgt_vf_in = torch.cat((next_obs[agent_i],onehot_from_logits(curr_agent.target_policy(next_obs[agent_i]))),
-                                       dim=1)
+                if self.convolutional:
+                    trgt_vf_in = (next_obs[agent_i], onehot_from_logits(curr_agent.target_policy(next_obs[agent_i])))
+                else:
+                    trgt_vf_in = torch.cat(
+                        (next_obs[agent_i], onehot_from_logits(curr_agent.target_policy(next_obs[agent_i]))),
+                        dim=1)
             else:
                 trgt_vf_in = torch.cat((next_obs[agent_i],
                                         curr_agent.target_policy(next_obs[agent_i])),
@@ -134,7 +138,10 @@ class MADDPG(object):
             else:
                 vf_in = torch.cat((*obs, *acs), dim=1)
         else:  # DDPG
-            vf_in = torch.cat((obs[agent_i], acs[agent_i]), dim=1)
+            if self.convolutional:
+                vf_in = (obs[agent_i], acs[agent_i])
+            else:
+                vf_in = torch.cat((obs[agent_i], acs[agent_i]), dim=1)
 
         actual_value = curr_agent.critic(vf_in)
         vf_loss = MSELoss(actual_value, target_value.detach())
@@ -153,7 +160,7 @@ class MADDPG(object):
             # correct since it removes the assumption of a deterministic policy for
             # DDPG. Regardless, discrete policies don't seem to learn properly without it.
             curr_pol_out = curr_agent.policy(obs[agent_i])
-            curr_pol_vf_in = gumbel_softmax(curr_pol_out, hard=True)
+            curr_pol_vf_in = gumbel_softmax(curr_pol_out, hard=True, device=self.critic_dev)
         else:
             curr_pol_out = curr_agent.policy(obs[agent_i])
             curr_pol_vf_in = curr_pol_out
@@ -172,8 +179,10 @@ class MADDPG(object):
             else:
                 vf_in = torch.cat((*obs, *all_pol_acs), dim=1)
         else:  # DDPG
-            vf_in = torch.cat((obs[agent_i], curr_pol_vf_in),
-                              dim=1)
+            if self.convolutional:
+                vf_in = (obs[agent_i], curr_pol_vf_in)
+            else:
+                vf_in = torch.cat((obs[agent_i], curr_pol_vf_in), dim=1)
         pol_loss = -curr_agent.critic(vf_in).mean()
         pol_loss += (curr_pol_out**2).mean() * 1e-3
         pol_loss.backward()
