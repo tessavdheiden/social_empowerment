@@ -41,7 +41,7 @@ def plot_training_curve(config):
 
     n_files = 0
     curve1 = 'pol_loss'
-    agent_num = 0
+    agent_num = 1
     for r, d, f in os.walk(model_path):
         for file in f:
             if file.endswith(".json"):
@@ -74,10 +74,9 @@ def plot_training_curve(config):
     ax[0].set_ylabel('PolicyLoss', fontsize=11)
     ax[1].set_ylabel('AvarageReturn', fontsize=11)
     ax[2].set_ylabel('CriticLoss', fontsize=11)
-    #ax[0].legend()
+    ax[0].legend()
 
     plt.tight_layout()
-    #plt.show()
     plt.savefig(model_path / f'learning_curve_agent{agent_num}.png')
 
 
