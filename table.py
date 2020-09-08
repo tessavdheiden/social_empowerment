@@ -13,30 +13,38 @@ def print_table(config):
 
     stats_path = model_path.parent / 'stats'
     all_infos = load(f'{stats_path}/all_infos.npy')
-    if config.env_id == 'simple_spread':
-        n_agents = 3
+    if config.env_id == 'simple_order':
         collisions = np.any(all_infos[:, :, :, 1] > 1, axis=1).mean()
-        avg_dist = all_infos[:, -5:, -1, 2].mean() * n_agents
-
-        print(f'collisions = {collisions:.3f} maximal one per episode and averaged over {len(all_infos)} episodes')
-        print(f'min_dist = {avg_dist:.3f} minimal distance at end of episode and averaged over {len(all_infos)} episodes')
-        print(f'episodes in collision = {np.argwhere(np.any(all_infos[:, :, 1] > 1, axis=1)).reshape(-1)}')
-
-    elif config.env_id == 'simple_speaker_listener2':
-        avg_dist = all_infos[:, -5:, 1, 0].mean()
-        distinct_token = np.array(list(map(len, np.unique(all_infos[:, -5:, 0, 1], axis=1)))).mean()
-        alternating_frequency = np.array(np.clip(np.abs(np.diff(all_infos[:, :, 0, 1], axis=1)), 0, 1)).mean()
-
-        print(f'avg_dist = {avg_dist:.3f} avg distance over [{all_infos.shape[0]}, 5, {all_infos.shape[2]}]=[eps, last 5t-steps, agents]')
-        print(f'distinct token per episode = {distinct_token:.3f} avg over [{all_infos.shape[0]}, {all_infos.shape[1]}, 1]=[eps, last 5t-steps, agents]')
-        print(f'frequency of changing tokens per episode = {alternating_frequency:.3f} avg over [{all_infos.shape[0]}, {all_infos.shape[1]}, 1]=[eps, t-steps, agents]')
-
-    elif config.env_id == 'simple_reference':
         avg_dist = all_infos[:, :, :, 2].mean()
-        target_reach = all_infos[:, :, :, 3].max(1).mean()
+        reward = all_infos[:, :, :, 0].mean()
+        fin_dist = all_infos[:, -5:, 1, 1].mean()
+        target_reach = all_infos[:, :, :, 3].mean()
 
-        print(f'target_reach = {target_reach:.3f} maximized over time steps averaged over {len(all_infos)} episodes and agents')
-        print(f'avg_dist = {avg_dist:.3f} avg distance over {len(all_infos)} episodes, {len(all_infos[-1])} time steps and {len(all_infos[-1, -1])} agents ')
+        print(f'reward: \t obs_hit: \t avg_dist:  \t fin_dis:  \t target_reach: ')
+        print(f'\t {reward:.3f}\t {collisions:.3f} \t {avg_dist:.3f} \t {fin_dist:.3f} \t {target_reach:.3f}')
+
+    elif config.env_id == 'simple_speaker_listener3':
+        ep, t, n_agents, metrics = all_infos.shape
+        avg_dist = all_infos[:, :, 1, 1].mean()
+        fin_dist = all_infos[:, -5:, 1, 1].mean()
+        target_reach = np.all(all_infos[:, -5:, 1, 1] < .1, axis=1).mean()
+        reward = all_infos[:, :, 1, 0].mean()
+
+        collisions = np.any(all_infos[:, :, 1, 3], axis=1).mean()
+        alternating_frequency = np.array(np.clip(np.abs(np.diff(all_infos[:, :, 0, 2], axis=1)), 0, 1)).mean()
+        distinct_token = np.array(list(map(len, np.unique(all_infos[:, -5:, 0, 2], axis=1)))).mean()
+
+        print(f'reward: \t obs_hit: \t avg_dist:  \t fin_dis:  \t target_reach: \t distinct_token: \t alternating_frequency:')
+        print(f'\t {reward:.3f}\t {collisions:.3f} \t {avg_dist:.3f} \t {fin_dist:.3f} \t {target_reach:.3f} \t {distinct_token:.3f} \t {alternating_frequency:.3f}')
+
+    elif config.env_id == 'simple_car_pixels':
+        reward = all_infos[:, :, 1, 0].mean()
+        collisions = np.any(all_infos[:, :, 0, 1], axis=1).mean()
+        off_road = np.any(all_infos[:, :, 0, 2], axis=1).mean()
+
+        print(f'reward: \t collisions: \t off_road: ')
+        print(f'\t {reward:.3f}\t {collisions:.3f} \t {off_road:.3f}')
+
 
 
 if __name__ == '__main__':

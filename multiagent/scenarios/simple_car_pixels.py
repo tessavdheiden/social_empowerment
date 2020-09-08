@@ -9,7 +9,8 @@ import scipy.ndimage
 
 
 colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
-                   [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15]])
+                   [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15],
+                   ROAD_COLOR])
 
 SCALE = TRACK_RAD * 2 / 2
 
@@ -29,7 +30,7 @@ class Scenario(BaseScenario):
             agent.name = 'dynamic agent %d' % i
             agent.collide = True
             agent.silent = True
-            agent.color = colors[i]
+            agent.color = colors[-1]
             agent.body = Car(world.box2d)
             agent.scale = SCALE
 
@@ -92,7 +93,7 @@ class Scenario(BaseScenario):
 
         for view in world.top_views:
             for road_color, road_patch in zip(ROAD_COLOR, view.transpose(2, 1, 0)):
-                rew -= abs(road_color - road_patch / 255.) * self.mask
+                rew -= abs(road_color - road_patch / 255.)# * self.mask
 
         c, w, h = view.shape
         rew /= (c*w*h)
@@ -113,9 +114,10 @@ class Scenario(BaseScenario):
         return gray
 
     def observation(self, agent, world):
+        views = world.get_views()
         for i, other in enumerate(world.agents):
             if other == agent:
-                view = world.get_views()[i]
+                view = views[i]
                 view = self.rgb2gray(view)
                 self.stacks[i].pop(0)
                 self.stacks[i].append(view)
@@ -125,7 +127,25 @@ class Scenario(BaseScenario):
         pass
 
     def benchmark_data(self, agent, world):
-        return (self.reward(agent, world), )
+        collisions = 0
+        off_road = 0
+
+        if agent.collide:
+            for a in world.agents:
+                if self.is_collision(a, agent):
+                    collisions += 1
+
+        views = world.get_views()
+        center = STATE_H // 2, STATE_W // 2
+        for i, other in enumerate(world.agents):
+            if other == agent:
+                view = views[i] # view.shape = h, w, c
+                area_under_car = np.array(view[center[0] - 1: center[0] + 1,
+                                                center[1] - 1: center[1] + 1])
+                if np.any(area_under_car > 100): # outside road color is white
+                    off_road += 1
+
+        return (self.reward(agent, world), collisions, off_road)
 
 
 def create_circular_mask(h, w):

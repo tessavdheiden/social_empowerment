@@ -15,6 +15,7 @@ colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
 def load_data(file_path, name, agent_num=0):
     cast = lambda x: np.array(x)
     with open(file_path) as json_file:
+        print(json_file)
         data = json.load(json_file)
         for key, value in data.items():
             if key.split('/')[-1] == name and int(key.split('/')[-3][-1]) == agent_num:
@@ -41,7 +42,7 @@ def plot_training_curve(config):
 
     n_files = 0
     curve1 = 'pol_loss'
-    agent_num = 1
+    agent_num = 0
     for r, d, f in os.walk(model_path):
         for file in f:
             if file.endswith(".json"):
