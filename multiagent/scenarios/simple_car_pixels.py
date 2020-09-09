@@ -30,7 +30,7 @@ class Scenario(BaseScenario):
             agent.name = 'dynamic agent %d' % i
             agent.collide = True
             agent.silent = True
-            agent.color = colors[-1]
+            agent.color = colors[i]
             agent.body = Car(world.box2d)
             agent.scale = SCALE
 
@@ -52,6 +52,7 @@ class Scenario(BaseScenario):
             s.movable = False
 
         self.mask = create_circular_mask(STATE_H, STATE_W)
+        self.mask = (self.mask - np.min(self.mask))/(np.max(self.mask)-np.min(self.mask))
 
         # make initial conditions
         world.reset()
@@ -81,6 +82,12 @@ class Scenario(BaseScenario):
             surface.state.p_vel = np.zeros(world.dim_p)
             surface.poly = np.array([[(c_i[0] / SCALE, c_i[1] / SCALE) for c_i in poly] for poly, color, id, lane in world.road_poly if lane == i])
 
+    def is_off_road(self, view):
+        center = STATE_H // 2, STATE_W // 2
+        area_under_car = np.array(view[center[0] - 1: center[0] + 1,
+                                        center[1] - 1: center[1] + 1])
+
+        return np.any(area_under_car > 100)  # outside road color is white
 
     def is_collision(self, agent1, agent2):
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
@@ -92,12 +99,10 @@ class Scenario(BaseScenario):
         rew = 0.
 
         for view in world.top_views:
-            for road_color, road_patch in zip(ROAD_COLOR, view.transpose(2, 1, 0)):
-                rew -= abs(road_color - road_patch / 255.)# * self.mask
+            h, w, c = view.shape
+            pixels = view.transpose(2, 1, 0) #* np.repeat(self.mask.reshape(1, h, w), 3, axis=0)
+            rew -= np.sum(abs(np.array(ROAD_COLOR).reshape(3, -1) - pixels.reshape(3, -1) / 255.) / (c*h*w))
 
-        c, w, h = view.shape
-        rew /= (c*w*h)
-        rew = np.sum(rew)
         # if agent.collide:
         #     for a in world.agents:
         #         if self.is_collision(a, agent):
@@ -130,20 +135,15 @@ class Scenario(BaseScenario):
         collisions = 0
         off_road = 0
 
-        if agent.collide:
-            for a in world.agents:
-                if self.is_collision(a, agent):
-                    collisions += 1
-
         views = world.get_views()
-        center = STATE_H // 2, STATE_W // 2
-        for i, other in enumerate(world.agents):
-            if other == agent:
-                view = views[i] # view.shape = h, w, c
-                area_under_car = np.array(view[center[0] - 1: center[0] + 1,
-                                                center[1] - 1: center[1] + 1])
-                if np.any(area_under_car > 100): # outside road color is white
-                    off_road += 1
+        if agent.collide:
+            for i, a in enumerate(world.agents):
+                if a != agent:
+                    if self.is_collision(a, agent):
+                        collisions += 1
+                else:
+                    if self.is_off_road(views[i]):
+                        off_road += 1
 
         return (self.reward(agent, world), collisions, off_road)
 
@@ -152,4 +152,4 @@ def create_circular_mask(h, w):
     center = (int(w / 2), int(h / 2))
 
     Y, X = np.ogrid[:h, :w]
-    return np.sqrt((X - center[0]) ** 2 + (Y - center[1]) ** 2)
+    return np.sqrt(center[0] ** 2 + center[1]**2) - np.sqrt((X - center[0]) ** 2 + (Y - center[1]) ** 2)

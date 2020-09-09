@@ -84,6 +84,7 @@ class RoadWorld(World, RoadCreator):
         self.render_geoms_xform = None
 
     def _add_geoms_to_viewer(self):
+        black_list = [] # not render agent in its own viewer
         # create rendering geometry
         if self.render_geoms is None:
             # import rendering only if we need it (and don't import for headless machines)
@@ -97,6 +98,7 @@ class RoadWorld(World, RoadCreator):
                 xform = rendering.Transform()
                 if 'agent' in entity.name:
                     geom.set_color(*entity.color, alpha=0.5)
+                    black_list.append(geom)
                 elif 'surface' in entity.name:
                     geom.set_color(entity.color)
                 else:
@@ -106,9 +108,10 @@ class RoadWorld(World, RoadCreator):
                 self.render_geoms_xform.append(xform)
 
             # add geoms to viewer
-            for viewer in self.viewers:
+            for i, viewer in enumerate(self.viewers):
                 viewer.geoms = []
                 for geom in self.render_geoms:
+                    if geom == black_list[i]: continue
                     viewer.add_geom(geom)
 
     def _create_top_view(self):
