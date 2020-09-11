@@ -83,7 +83,7 @@ class Scenario(BaseScenario):
             for obs in world.obstacles:
                 if self.is_collision(obs, agent):
                     collisions += 1
-        return (-self.reward(agent, world), message, collisions)
+        return (-self.reward(agent, world), np.sum(np.square(world.agents[0].goal_a.state.p_pos - world.agents[0].goal_b.state.p_pos)), message, collisions)
 
     def is_collision(self, agent1, agent2):
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
