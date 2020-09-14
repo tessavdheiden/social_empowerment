@@ -45,8 +45,6 @@ class RoadWorld(World, RoadCreator):
         self.fd_tile = fixtureDef(
             shape=polygonShape(vertices=[(0, 0), (1, 0), (1, -1), (0, -1)]))
 
-        self.seed()
-
         self.shared_viewer = False
         self.top_views = []
         self.car_physics=False
@@ -185,10 +183,6 @@ class RoadWorld(World, RoadCreator):
         # update agent state
         for agent in self.agents:
             self.update_agent_state(agent)
-
-    def seed(self, seed=None):
-        self.np_random, seed = seeding.np_random(seed)
-        return [seed]
 
     def _destroy(self):
         if not self.road:

@@ -38,10 +38,6 @@ class RoadCreator(gym.Env, EzPickle):
     def __init__(self):
         pass
 
-    def seed(self, seed=None):
-        self.np_random, seed = seeding.np_random(seed)
-        return [seed]
-
     def _destroy(self):
         if not self.road: return
         for t in self.road:
@@ -58,8 +54,8 @@ class RoadCreator(gym.Env, EzPickle):
         # Create checkpoints
         checkpoints = []
         for c in range(num_checkpoints):
-            alpha = 2 * math.pi * c / num_checkpoints + self.np_random.uniform(0, 2 * math.pi * 1 / num_checkpoints)
-            rad = self.np_random.uniform(track_rad / 3, track_rad)
+            alpha = 2 * math.pi * c / num_checkpoints + np.random.uniform(0, 2 * math.pi * 1 / num_checkpoints)
+            rad = np.random.uniform(track_rad / 3, track_rad)
             if c == 0:
                 alpha = 0
                 rad = 1.5 * track_rad
