@@ -10,6 +10,7 @@ setup(
         'torchvision==0.6.1',
         'Box2D',
         'pyglet==1.3.2',
-        'tensorboardX'
+        'tensorboardX',
+        'imageio==2.9.0'
     ],
 )
