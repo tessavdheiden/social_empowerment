@@ -13,7 +13,7 @@ class BaseEmpowerment(object):
     def compute(self, reward, next_obs):
         return NotImplementedError
 
-    def update(self, sample):
+    def update(self, sample, logger):
         pass
 
     def prep_training(self, device):

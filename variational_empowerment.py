@@ -6,7 +6,7 @@ MSELoss = torch.nn.MSELoss()
 
 
 from utils.networks import MLPNetwork
-from utils.misc import gumbel_softmax
+from utils.misc import gumbel_softmax, onehot_from_logits
 
 
 class VariationalJointEmpowerment(object):
@@ -22,20 +22,24 @@ class VariationalJointEmpowerment(object):
         self.source_dev = 'cpu'
         self.plan_dev = 'cpu'
 
+        self.niter = 0
+
     def compute(self, rewards, obs):
         with torch.no_grad():
             obs_torch = [Variable(torch.Tensor(np.vstack(obs[:, i])),
                       requires_grad=False) for i in range(rewards.shape[1])]
             obs_torch = torch.cat(obs_torch, dim=1)
             acs = self.source(obs_torch)
-            next_obs_trans = self.transition(torch.cat((obs_torch, acs), dim=1))
+            next_obs_trans = self.transition(torch.cat((obs_torch, onehot_from_logits(acs)), dim=1))
             plan_in = torch.cat((obs_torch, next_obs_trans), dim=1)
             acs_plan = self.planning(plan_in)
-            emp = gumbel_softmax(acs_plan, device=self.source_dev) - gumbel_softmax(acs, device=self.source_dev)
+            ac = onehot_from_logits(acs)
+            emp = gumbel_softmax(acs_plan, device=self.source_dev) * ac - \
+                  gumbel_softmax(acs, device=self.source_dev) * ac
             i_rews = emp.mean() * torch.ones((1, rewards.shape[1]))
             return i_rews.numpy()
 
-    def update(self, sample):
+    def update(self, sample, logger=None):
         obs, acs, rews, emps, next_obs, dones = sample
 
         self.transition_optimizer.zero_grad()
@@ -47,17 +51,26 @@ class VariationalJointEmpowerment(object):
 
         self.source_optimizer.zero_grad()
         obs_torch = torch.cat(next_obs, dim=1)
-
         acs_src = self.source(obs_torch)
         with torch.no_grad():
-            trans_in = torch.cat((obs_torch, acs_src), dim=1)
+            trans_in = torch.cat((obs_torch, onehot_from_logits(acs_src)), dim=1)
             next_obs_trans = self.transition(trans_in)
         plan_in = torch.cat((obs_torch, next_obs_trans), dim=1)
         acs_plan = self.planning(plan_in)
 
-        emp = - gumbel_softmax(acs_plan, device=self.source_dev) + gumbel_softmax(acs_src, device=self.source_dev)
-        emp.mean().backward()
+        ac = onehot_from_logits(acs_src)
+        emp = - gumbel_softmax(acs_plan, device=self.source_dev) * ac + gumbel_softmax(acs_src, device=self.source_dev) * ac
+
+        i_rews = emp.mean()
+        i_rews.backward()
         self.source_optimizer.step()
+
+        if logger is not None:
+            logger.add_scalars('empowerment',
+                               {'i_rews': i_rews,
+                                'trans_loss': trans_loss},
+                               self.niter)
+        self.niter += 1
 
     def prep_training(self, device='gpu'):
         self.transition.train()

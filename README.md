@@ -50,6 +50,9 @@ MADDPG             | EMADDPG
 :-------------------------:|:-------------------------:
 <img src="https://user-images.githubusercontent.com/24938569/89157902-94092400-d56d-11ea-985e-ec243e9daa49.gif" width="200" />|<img src="https://user-images.githubusercontent.com/24938569/89157957-a84d2100-d56d-11ea-93ec-a3dd27494d24.gif" width="200" />
 
+```
+python main.py maddpg+ve --recurrent --variational_joint_empowerment
+```
 
 ### Cooperative Driving
 Cars need to stay on the road and need to avoid collisions. Agents only obtain a small top view image and their own states, 
