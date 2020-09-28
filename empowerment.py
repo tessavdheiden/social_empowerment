@@ -16,6 +16,12 @@ class BaseEmpowerment(object):
     def update(self, sample):
         pass
 
+    def prep_training(self, device):
+        pass
+
+    def prep_rollouts(self, device):
+        pass
+
 class DummyEmpowerment(BaseEmpowerment):
     def __init__(self, agents):
         super(DummyEmpowerment, self).__init__()

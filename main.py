@@ -111,6 +111,7 @@ def run(config):
         obs = env.reset()
         # obs.shape = (n_rollout_threads, nagent)(nobs), nobs differs per agent so not tensor
         maddpg.prep_rollouts(device='cpu')
+        [e.prep_rollouts(device='cpu') for e in empowerment_modules]
 
         explr_pct_remaining = max(0, config.n_exploration_eps - ep_i) / config.n_exploration_eps
         maddpg.scale_noise(config.final_noise_scale + (config.init_noise_scale - config.final_noise_scale) * explr_pct_remaining)
@@ -129,15 +130,19 @@ def run(config):
             actions = [[ac[i] for ac in agent_actions] for i in range(config.n_rollout_threads)]
             next_obs, rewards, dones, infos = env.step(actions)
 
-            replay_buffer.push(obs, agent_actions, rewards, rewards, next_obs, dones)
+            emps = np.sum(np.asarray([e.compute(rewards, next_obs) for e in empowerment_modules]), axis=0)
+
+            replay_buffer.push(obs, agent_actions, rewards, emps, next_obs, dones)
             obs = next_obs
             t += config.n_rollout_threads
             if (len(replay_buffer) >= config.batch_size and
                 (t % config.steps_per_update) < config.n_rollout_threads):
                 if USE_CUDA:
                     maddpg.prep_training(device='gpu')
+                    [e.prep_training(device='gpu') for e in empowerment_modules]
                 else:
                     maddpg.prep_training(device='cpu')
+                    [e.prep_training(device='cpu') for e in empowerment_modules]
                 for u_i in range(config.n_rollout_threads):
                     for a_i in range(maddpg.nagents):
                         sample = replay_buffer.sample(config.batch_size,
@@ -146,6 +151,7 @@ def run(config):
                         [e.update(sample) for e in empowerment_modules]
                     maddpg.update_all_targets()
                 maddpg.prep_rollouts(device='cpu')
+                [e.prep_rollouts(device='cpu') for e in empowerment_modules]
 
                 print(f'computation time = {time.time() - start:.3f}s buffer length = {len(replay_buffer)}')
         ep_rews = replay_buffer.get_average_rewards(
