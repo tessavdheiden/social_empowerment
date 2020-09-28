@@ -13,7 +13,10 @@ class BaseEmpowerment(object):
     def compute(self, reward, next_obs):
         return NotImplementedError
 
-class DummyEmpowerment(object):
+    def update(self, sample):
+        pass
+
+class DummyEmpowerment(BaseEmpowerment):
     def __init__(self, agents):
         super(DummyEmpowerment, self).__init__()
         self.agents = agents
