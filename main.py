@@ -13,8 +13,9 @@ from utils.buffer import ReplayBuffer
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 from algorithms.maddpg import MADDPG
 from empowerment import DummyEmpowerment, JointEmpowerment, TransferEmpowerment
+from variational_empowerment import VariationalJointEmpowerment
 
-USE_CUDA = False  # torch.cuda.is_available()
+USE_CUDA = torch.cuda.is_available()
 
 
 
@@ -32,13 +33,23 @@ def make_parallel_env(env_id, n_rollout_threads, seed, discrete_action):
     else:
         return SubprocVecEnv([get_env_fn(i) for i in range(n_rollout_threads)])
 
-def create_empowerment(config, agents):
+def create_empowerment(config, agents, env):
     modules = [DummyEmpowerment(agents)]
     if config.joint_empowerment:
         modules.append(JointEmpowerment(agents))
     if config.transfer_empowerment:
         modules.append(TransferEmpowerment(agents))
+    if config.variational_joint_empowerment:
+        modules.append(VariationalJointEmpowerment.init_from_env(env))
     return modules
+
+
+def create_neural_network(modules):
+    nn = []
+    for module in modules:
+        module.add_to_nn_list(nn)
+
+    return nn
 
 
 def run(config):
@@ -91,7 +102,7 @@ def run(config):
                                  sum(acsp.high - acsp.low + 1) for acsp in env.action_space])
     t = 0
 
-    empowerment_modules = create_empowerment(config, maddpg.agents)
+    empowerment_modules = create_empowerment(config, maddpg.agents, env)
 
     for ep_i in range(ep_st, config.n_episodes, config.n_rollout_threads):
         print("Episodes %i-%i of %i" % (ep_i + 1,
@@ -118,9 +129,7 @@ def run(config):
             actions = [[ac[i] for ac in agent_actions] for i in range(config.n_rollout_threads)]
             next_obs, rewards, dones, infos = env.step(actions)
 
-            empowerment = np.mean(np.array([e.compute(rewards, next_obs) for e in empowerment_modules]), axis=0)
-
-            replay_buffer.push(obs, agent_actions, rewards, empowerment, next_obs, dones)
+            replay_buffer.push(obs, agent_actions, rewards, rewards, next_obs, dones)
             obs = next_obs
             t += config.n_rollout_threads
             if (len(replay_buffer) >= config.batch_size and
@@ -134,10 +143,11 @@ def run(config):
                         sample = replay_buffer.sample(config.batch_size,
                                                       to_gpu=USE_CUDA)
                         maddpg.update(sample, a_i, logger=logger)
+                        [e.update(sample) for e in empowerment_modules]
                     maddpg.update_all_targets()
                 maddpg.prep_rollouts(device='cpu')
 
-                print(f'computation time = {time.time() - start:.3f}s')
+                print(f'computation time = {time.time() - start:.3f}s buffer length = {len(replay_buffer)}')
         ep_rews = replay_buffer.get_average_rewards(
             config.episode_length * config.n_rollout_threads)
         for a_i, a_ep_rew in enumerate(ep_rews):
@@ -172,7 +182,7 @@ if __name__ == '__main__':
                         help="Random seed")
     parser.add_argument("--n_rollout_threads", default=1, type=int)
     parser.add_argument("--n_training_threads", default=6, type=int)
-    parser.add_argument("--buffer_length", default=int(1e6), type=int)
+    parser.add_argument("--buffer_length", default=int(1e5), type=int)
     parser.add_argument("--n_episodes", default=25000, type=int)
     parser.add_argument("--episode_length", default=25, type=int)
     parser.add_argument("--steps_per_update", default=100, type=int)
@@ -199,6 +209,8 @@ if __name__ == '__main__':
     parser.add_argument("--convolutional",
                         action='store_true')
     parser.add_argument("--joint_empowerment",
+                        action='store_true')
+    parser.add_argument("--variational_joint_empowerment",
                         action='store_true')
     parser.add_argument("--transfer_empowerment",
                         action='store_true')
