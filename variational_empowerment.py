@@ -18,7 +18,7 @@ class VariationalJointEmpowerment(object):
 
         self.transition_optimizer = Adam(self.transition.parameters(), lr=lr)
         self.planning_optimizer = Adam(self.planning.parameters(), lr=lr)
-        self.source_optimizer = Adam(self.source.parameters(), lr=lr)
+        self.source_optimizer = Adam(list(self.source.parameters()) + list(self.planning.parameters()), lr=lr)
         self.trans_dev = 'cpu'  # device for transition
         self.source_dev = 'cpu'
         self.plan_dev = 'cpu'
@@ -97,8 +97,12 @@ class VariationalJointEmpowerment(object):
         i_rews.backward()
         self.source_optimizer.step()
 
-        print(f'transition loss = {trans_loss.detach():.3f} planning loss = {plan_loss.detach():.3f} E = {E.mean().detach():.3f}')
-
+        if logger is not None:
+            logger.add_scalars('empowerment/losses',
+                               {'trans_loss': trans_loss.detach(),
+                                'plan_loss': plan_loss.detach(),
+                                'i_rews': i_rews.detach()},
+                               self.niter)
         self.niter += 1
 
     def prep_training(self, device='gpu'):
