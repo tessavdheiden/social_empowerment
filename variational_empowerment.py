@@ -209,7 +209,6 @@ class VariationalTransferEmpowerment(VariationalBaseEmpowerment):
         self.niter = 0
 
     def compute(self, rewards, next_obs):
-        return rewards
         with torch.no_grad():
             next_obs = [Variable(torch.Tensor(np.vstack(next_obs[:, i])),
                       requires_grad=False) for i in range(rewards.shape[1])]
@@ -223,9 +222,10 @@ class VariationalTransferEmpowerment(VariationalBaseEmpowerment):
             trans_in = torch.cat((*next_obs, *acs_src), dim=1)
             trans_out = self.transition(trans_in)
             prob_plan = []
-            n_obs = len(next_obs[0][0])
+            start = 0
             for i, (no, planning) in enumerate(zip(next_obs, self.planning)):
-                nno = trans_out[:, i * n_obs:(i + 1) * n_obs]
+                length = no.shape[1]
+                nno = trans_out[:, start:start + length]
                 plan_in = torch.cat((no, nno), dim=1)
                 prob_plan.append(gumbel_softmax(planning(plan_in), device=self.plan_dev, hard=False))
             prob_plan = torch.cat(prob_plan, dim=1)
@@ -302,8 +302,8 @@ class VariationalTransferEmpowerment(VariationalBaseEmpowerment):
             self.trans_dev = device
         if not self.source_dev == device:
             for source in self.source:
-                source.train()
                 source = fn(source)
+                source.train()
             self.source_dev = device
         if not self.plan_dev == device:
             for planning in self.planning:
@@ -311,7 +311,7 @@ class VariationalTransferEmpowerment(VariationalBaseEmpowerment):
                 planning.train()
             self.plan_dev = device
 
-    def prep_rollouts(self, device):
+    def prep_rollouts(self, device='cpu'):
         self.transition.eval()
         if device == 'gpu':
             fn = lambda x: x.cuda()
@@ -321,16 +321,19 @@ class VariationalTransferEmpowerment(VariationalBaseEmpowerment):
         if not self.trans_dev == device:
             self.transition = fn(self.transition)
             self.trans_dev = device
+        self.transition.eval()
         if not self.source_dev == device:
             for source in self.source:
                 source = fn(source)
-                source.eval()
             self.source_dev = device
+        for source in self.source:
+            source.eval()
         if not self.plan_dev == device:
             for planning in self.planning:
                 planning = fn(planning)
-                planning.eval()
             self.plan_dev = device
+        for planning in self.planning:
+            planning.eval()
 
 
     @classmethod

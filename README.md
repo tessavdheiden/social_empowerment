@@ -39,6 +39,10 @@ DDPG              | MADDPG             | EMADDPG
 :-------------------------:|:-------------------------:|:-------------------------:
 <img src="https://user-images.githubusercontent.com/24938569/89288011-3bad5180-d655-11ea-8c5d-d3c895510985.gif" width="200" />|<img src="https://user-images.githubusercontent.com/24938569/89042716-abff5e80-d347-11ea-9ff1-fed829d10d57.gif" width="200" />|<img src="https://user-images.githubusercontent.com/24938569/89042658-91c58080-d347-11ea-8acc-92f1ef9a7b15.gif" width="200" />
 
+```
+python simple_speaker_listener3 maddpg+ve --recurrent --variational_transfer_empowerment
+```
+
 ### Cooperative Coordination
 In this simple task agents need to cover all landmarks. MADDPG algorithm is trained by self-play, causing them to agree upon
 a rule. For example, agent 1 goes to the red, agent 2 goes to the green and agent 3 to the blue landmark. 
