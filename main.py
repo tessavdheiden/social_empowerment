@@ -13,7 +13,7 @@ from utils.buffer import ReplayBuffer
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 from algorithms.maddpg import MADDPG
 from empowerment import DummyEmpowerment, JointEmpowerment, TransferEmpowerment
-from variational_empowerment import VariationalJointEmpowerment
+from variational_empowerment import VariationalJointEmpowerment, VariationalTransferEmpowerment
 
 USE_CUDA = torch.cuda.is_available()
 
@@ -41,6 +41,8 @@ def create_empowerment(config, agents, env):
         modules.append(TransferEmpowerment(agents))
     if config.variational_joint_empowerment:
         modules.append(VariationalJointEmpowerment.init_from_env(env))
+    if config.variational_transfer_empowerment:
+        modules.append(VariationalTransferEmpowerment.init_from_env(env))
     return modules
 
 
@@ -148,7 +150,7 @@ def run(config):
                         sample = replay_buffer.sample(config.batch_size,
                                                       to_gpu=USE_CUDA)
                         maddpg.update(sample, a_i, logger=logger)
-                        [e.update(sample) for e in empowerment_modules]
+                        [e.update(sample, logger=logger) for e in empowerment_modules]
                     maddpg.update_all_targets()
                 maddpg.prep_rollouts(device='cpu')
                 [e.prep_rollouts(device='cpu') for e in empowerment_modules]
@@ -165,8 +167,6 @@ def run(config):
             os.makedirs(run_dir / 'incremental', exist_ok=True)
             maddpg.save(run_dir / 'incremental' / ('model_ep%i.pt' % (ep_i + 1)))
             maddpg.save(run_dir / 'model.pt')
-
-
 
     maddpg.save(run_dir / 'model.pt')
     env.close()
@@ -219,6 +219,8 @@ if __name__ == '__main__':
     parser.add_argument("--variational_joint_empowerment",
                         action='store_true')
     parser.add_argument("--transfer_empowerment",
+                        action='store_true')
+    parser.add_argument("--variational_transfer_empowerment",
                         action='store_true')
 
     config = parser.parse_args()
