@@ -11,13 +11,13 @@ from utils.networks import MLPNetwork
 
 
 class ComputerTransfer(object):
-    def __init__(self, empowerment):
-        self.transition = empowerment.transition
-        self.source = empowerment.source
-        self.planning = empowerment.planning
-        self.plan_dev = empowerment.plan_dev
-        self.source_dev = empowerment.source_dev
-        self.trans_dev = empowerment.trans_dev
+    def __init__(self, variational_joint_empowerment):
+        self.transition = variational_joint_empowerment.transition
+        self.source = variational_joint_empowerment.source
+        self.planning = variational_joint_empowerment.planning
+        self.plan_dev = variational_joint_empowerment.plan_dev
+        self.source_dev = variational_joint_empowerment.source_dev
+        self.trans_dev = variational_joint_empowerment.trans_dev
 
     def compute(self, rewards, next_obs):
         with torch.no_grad():
@@ -78,21 +78,21 @@ class ComputerTransfer(object):
 
 
 class TrainerTransfer(object):
-    def __init__(self, empowerment):
-        self.transition = empowerment.transition
-        self.source = empowerment.source
-        self.planning = empowerment.planning
-        self.plan_dev = empowerment.plan_dev
-        self.source_dev = empowerment.source_dev
-        self.trans_dev = empowerment.trans_dev
+    def __init__(self, variational_joint_empowerment):
+        self.transition = variational_joint_empowerment.transition
+        self.source = variational_joint_empowerment.source
+        self.planning = variational_joint_empowerment.planning
+        self.plan_dev = variational_joint_empowerment.plan_dev
+        self.source_dev = variational_joint_empowerment.source_dev
+        self.trans_dev = variational_joint_empowerment.trans_dev
 
-        self.transition_optimizer = Adam(self.transition.parameters(), lr=empowerment.lr)
+        self.transition_optimizer = Adam(self.transition.parameters(), lr=variational_joint_empowerment.lr)
         params_planning = []
         for mlp in self.planning: params_planning += list(mlp.parameters())
-        self.planning_optimizer = Adam(params_planning, lr=empowerment.lr)
+        self.planning_optimizer = Adam(params_planning, lr=variational_joint_empowerment.lr)
         params_source = []
         for mlp in self.source: params_source += list(mlp.parameters())
-        self.source_optimizer = Adam(params_source, lr=empowerment.lr)
+        self.source_optimizer = Adam(params_source, lr=variational_joint_empowerment.lr)
         self.niter = 0
 
     def update(self, sample, logger):
