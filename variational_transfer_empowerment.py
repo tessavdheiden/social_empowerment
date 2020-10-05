@@ -92,7 +92,7 @@ class TrainerTransfer(object):
         self.planning_optimizer = Adam(params_planning, lr=empowerment.lr)
         params_source = []
         for mlp in self.source: params_source += list(mlp.parameters())
-        self.source_optimizer = Adam(params_source, lr=empowerment.lr)
+        self.source_optimizer = Adam(params_source + params_planning, lr=empowerment.lr)
         self.niter = 0
 
     def update(self, sample, logger):

@@ -14,7 +14,8 @@ from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 from algorithms.maddpg import MADDPG
 from empowerment import DummyEmpowerment, JointEmpowerment, TransferEmpowerment
 from variational_joint_empowerment import VariationalJointEmpowerment
-from variational_empowerment import VariationalTransferEmpowerment
+from variational_transfer_empowerment import VariationalTransferEmpowerment
+
 
 USE_CUDA = torch.cuda.is_available()
 
