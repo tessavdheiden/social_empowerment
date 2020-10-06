@@ -10,14 +10,14 @@ from utils.misc import gumbel_softmax
 from utils.networks import MLPNetwork
 
 
-class ComputerTransfer(object):
-    def __init__(self, variational_joint_empowerment):
-        self.transition = variational_joint_empowerment.transition
-        self.source = variational_joint_empowerment.source
-        self.planning = variational_joint_empowerment.planning
-        self.plan_dev = variational_joint_empowerment.plan_dev
-        self.source_dev = variational_joint_empowerment.source_dev
-        self.trans_dev = variational_joint_empowerment.trans_dev
+class ComputerTransferAction(object):
+    def __init__(self, empowerment):
+        self.transition = empowerment.transition
+        self.source = empowerment.source
+        self.planning = empowerment.planning
+        self.plan_dev = empowerment.plan_dev
+        self.source_dev = empowerment.source_dev
+        self.trans_dev = empowerment.trans_dev
 
     def compute(self, rewards, next_obs):
         with torch.no_grad():
@@ -37,7 +37,12 @@ class ComputerTransfer(object):
             for i, (no, planning) in enumerate(zip(next_obs, self.planning)):
                 length = no.shape[1]
                 nno = trans_out[:, start:start + length]
-                plan_in = torch.cat((no, nno), dim=1)
+                acs_ = []
+                for j, ac in enumerate(acs_src):
+                    if j != i: acs_.append(ac)
+                acs_ = torch.cat(acs_, dim=1)
+                plan_in = torch.cat((no, nno, acs_), dim=1)
+
                 prob_plan.append(gumbel_softmax(planning(plan_in), device=self.plan_dev, hard=False))
             prob_plan = torch.cat(prob_plan, dim=1)
             prob_src = torch.cat(prob_src, dim=1)
@@ -77,22 +82,22 @@ class ComputerTransfer(object):
         self.plan_dev = device
 
 
-class TrainerTransfer(object):
-    def __init__(self, variational_joint_empowerment):
-        self.transition = variational_joint_empowerment.transition
-        self.source = variational_joint_empowerment.source
-        self.planning = variational_joint_empowerment.planning
-        self.plan_dev = variational_joint_empowerment.plan_dev
-        self.source_dev = variational_joint_empowerment.source_dev
-        self.trans_dev = variational_joint_empowerment.trans_dev
+class TrainerTransferAction(object):
+    def __init__(self, empowerment):
+        self.transition = empowerment.transition
+        self.source = empowerment.source
+        self.planning = empowerment.planning
+        self.plan_dev = empowerment.plan_dev
+        self.source_dev = empowerment.source_dev
+        self.trans_dev = empowerment.trans_dev
 
-        self.transition_optimizer = Adam(self.transition.parameters(), lr=variational_joint_empowerment.lr)
+        self.transition_optimizer = Adam(self.transition.parameters(), lr=empowerment.lr)
         params_planning = []
         for mlp in self.planning: params_planning += list(mlp.parameters())
-        self.planning_optimizer = Adam(params_planning, lr=variational_joint_empowerment.lr)
+        self.planning_optimizer = Adam(params_planning, lr=empowerment.lr)
         params_source = []
         for mlp in self.source: params_source += list(mlp.parameters())
-        self.source_optimizer = Adam(params_source, lr=variational_joint_empowerment.lr)
+        self.source_optimizer = Adam(params_source + params_planning, lr=empowerment.lr)
         self.niter = 0
 
     def update(self, sample, logger):
@@ -107,8 +112,12 @@ class TrainerTransfer(object):
 
         self.planning_optimizer.zero_grad()
         acs_plan = []
-        for o, no, planning in zip(obs, next_obs, self.planning):
-            plan_in = torch.cat((o, no), dim=1)
+        for i, (o, no, planning) in enumerate(zip(obs, next_obs, self.planning)):
+            acs_ = []
+            for j, ac in enumerate(acs):
+                if j != i: acs_.append(ac)
+            acs_ = torch.cat(acs_, dim=1)
+            plan_in = torch.cat((o, no, acs_), dim=1)
             acs_plan.append(gumbel_softmax(planning(plan_in), device=self.plan_dev, hard=True))
         acs_plan = torch.cat(acs_plan, dim=1)
         acs_torch = torch.cat(acs, dim=1)
@@ -130,7 +139,11 @@ class TrainerTransfer(object):
         for i, (no, planning) in enumerate(zip(next_obs, self.planning)):
             length = no.shape[1]
             nno = trans_out[:, start:start + length]
-            plan_in = torch.cat((no, nno), dim=1)
+            acs_ = []
+            for j, ac in enumerate(acs):
+                if j != i: acs_.append(ac)
+            acs_ = torch.cat(acs_, dim=1)
+            plan_in = torch.cat((no, nno, acs_), dim=1)
             prob_plan.append(gumbel_softmax(planning(plan_in), device=self.plan_dev, hard=False))
             start += length
         prob_plan = torch.cat(prob_plan, dim=1)
@@ -176,10 +189,10 @@ class TrainerTransfer(object):
         self.plan_dev = device
 
 
-class VariationalTransferEmpowerment(VariationalBaseEmpowerment):
+class VariationalTransferActionEmpowerment(VariationalBaseEmpowerment):
     def __init__(self, init_params, num_in_trans, num_out_trans, lr=0.01, hidden_dim=64, recurrent=False,
                  convolutional=False):
-        super(VariationalTransferEmpowerment, self).__init__()
+        super(VariationalTransferActionEmpowerment, self).__init__()
         self.transition = MLPNetwork(num_in_trans, num_out_trans, recurrent=True)
         self.source = [MLPNetwork(p['num_in_src'], p['num_out_src'], recurrent=True) for p in init_params]
         self.planning = [MLPNetwork(p['num_in_plan'], p['num_out_plan'], recurrent=True) for p in init_params]
@@ -190,8 +203,8 @@ class VariationalTransferEmpowerment(VariationalBaseEmpowerment):
         self.source_dev = 'cpu'
         self.plan_dev = 'cpu'
 
-        self.computer = ComputerTransfer(self)
-        self.trainer = TrainerTransfer(self)
+        self.computer = ComputerTransferAction(self)
+        self.trainer = TrainerTransferAction(self)
 
     def compute(self, rewards, next_obs):
         return self.computer.compute(rewards, next_obs)
@@ -216,11 +229,13 @@ class VariationalTransferEmpowerment(VariationalBaseEmpowerment):
         init_params = []
 
         num_in_transition = num_out_transition = 0
-        for acsp, obsp in zip(env.action_space, env.observation_space):
+        for i, (acsp, obsp) in enumerate(zip(env.action_space, env.observation_space)):
             num_in_source = obsp.shape[0]
             num_out_source = acsp.n
 
             num_in_planning = 2 * obsp.shape[0]
+            for j, acsp_j in enumerate(env.action_space):
+                if j != i: num_in_planning += acsp_j.n
             num_out_planning = acsp.n
 
             num_in_transition += obsp.shape[0] + acsp.n

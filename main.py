@@ -15,6 +15,7 @@ from algorithms.maddpg import MADDPG
 from empowerment import DummyEmpowerment, JointEmpowerment, TransferEmpowerment
 from variational_joint_empowerment import VariationalJointEmpowerment
 from variational_transfer_empowerment import VariationalTransferEmpowerment
+from variational_transfer_action_empowerment import VariationalTransferActionEmpowerment
 
 
 USE_CUDA = torch.cuda.is_available()
@@ -45,6 +46,8 @@ def create_empowerment(config, agents, env):
         modules.append(VariationalJointEmpowerment.init_from_env(env))
     if config.variational_transfer_empowerment:
         modules.append(VariationalTransferEmpowerment.init_from_env(env))
+    if config.variational_transfer_action_empowerment:
+        modules.append(VariationalTransferActionEmpowerment.init_from_env(env))
     return modules
 
 
@@ -223,6 +226,8 @@ if __name__ == '__main__':
     parser.add_argument("--transfer_empowerment",
                         action='store_true')
     parser.add_argument("--variational_transfer_empowerment",
+                        action='store_true')
+    parser.add_argument("--variational_transfer_action_empowerment",
                         action='store_true')
 
     config = parser.parse_args()
