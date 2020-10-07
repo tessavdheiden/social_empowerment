@@ -16,7 +16,8 @@ from empowerment import DummyEmpowerment, JointEmpowerment, TransferEmpowerment
 from variational_joint_empowerment import VariationalJointEmpowerment
 from variational_transfer_empowerment import VariationalTransferEmpowerment
 from variational_transfer_action_empowerment import VariationalTransferActionEmpowerment
-
+from variational_transfer_all_action_pi_empowerment import VariationalTransferAllActionPiEmpowerment
+from variational_transfer_single_action_pi_empowerment import VariationalTransferSingleActionPiEmpowerment
 
 USE_CUDA = torch.cuda.is_available()
 
@@ -48,6 +49,10 @@ def create_empowerment(config, agents, env):
         modules.append(VariationalTransferEmpowerment.init_from_env(env))
     if config.variational_transfer_action_empowerment:
         modules.append(VariationalTransferActionEmpowerment.init_from_env(env))
+    if config.variational_transfer_all_action_pi_empowerment:
+        modules.append(VariationalTransferAllActionPiEmpowerment.init(agents, env))
+    if config.variational_transfer_single_action_pi_empowerment:
+        modules.append(VariationalTransferSingleActionPiEmpowerment.init(agents, env))
     return modules
 
 
@@ -229,7 +234,12 @@ if __name__ == '__main__':
                         action='store_true')
     parser.add_argument("--variational_transfer_action_empowerment",
                         action='store_true')
-
+    parser.add_argument("--variational_transfer_action_pi_empowerment",
+                        action='store_true')
+    parser.add_argument("--variational_transfer_all_action_pi_empowerment",
+                        action='store_true')
+    parser.add_argument("--variational_transfer_single_action_pi_empowerment",
+                        action='store_true')
     config = parser.parse_args()
 
     run(config)

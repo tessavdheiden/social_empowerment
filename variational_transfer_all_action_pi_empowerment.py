@@ -10,7 +10,7 @@ from utils.misc import gumbel_softmax
 from utils.networks import MLPNetwork
 
 
-class ComputerTransferActionPi(object):
+class ComputerTransferAllActionPi(object):
     def __init__(self, empowerment):
         self.transition = empowerment.transition
         self.source = empowerment.source
@@ -84,7 +84,7 @@ class ComputerTransferActionPi(object):
         self.plan_dev = device
 
 
-class TrainerTransferActionPi(object):
+class TrainerTransferAllActionPi(object):
     def __init__(self, empowerment):
         self.transition = empowerment.transition
         self.source = empowerment.source
@@ -181,10 +181,10 @@ class TrainerTransferActionPi(object):
         self.plan_dev = device
 
 
-class VariationalTransferActionPiEmpowerment(VariationalBaseEmpowerment):
+class VariationalTransferAllActionPiEmpowerment(VariationalBaseEmpowerment):
     def __init__(self, agents, init_params, num_in_trans, num_out_trans, lr=0.01, hidden_dim=64, recurrent=False,
                  convolutional=False):
-        super(VariationalTransferActionPiEmpowerment, self).__init__()
+        super(VariationalTransferAllActionPiEmpowerment, self).__init__()
         self.agents = agents
         self.transition = MLPNetwork(num_in_trans, num_out_trans, recurrent=True)
         self.source = [MLPNetwork(p['num_in_src'], p['num_out_src'], recurrent=True) for p in init_params]
@@ -196,8 +196,8 @@ class VariationalTransferActionPiEmpowerment(VariationalBaseEmpowerment):
         self.source_dev = 'cpu'
         self.plan_dev = 'cpu'
 
-        self.computer = ComputerTransferActionPi(self)
-        self.trainer = TrainerTransferActionPi(self)
+        self.computer = ComputerTransferAllActionPi(self)
+        self.trainer = TrainerTransferAllActionPi(self)
 
     def compute(self, rewards, next_obs):
         return self.computer.compute(rewards, next_obs)
