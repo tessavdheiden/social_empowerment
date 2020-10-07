@@ -151,7 +151,6 @@ class TrainerTransferActionPi(object):
         if logger is not None:
             logger.add_scalars('empowerment/losses',
                                {'trans_loss': trans_loss.detach(),
-                                # 'plan_loss': plan_loss.detach(),
                                 'i_rews': i_rews.detach()},
                                self.niter)
         self.niter += 1
