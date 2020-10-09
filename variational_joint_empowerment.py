@@ -10,14 +10,21 @@ from utils.misc import gumbel_softmax
 from utils.networks import MLPNetwork
 
 
+class Devices(object):
+    def __init__(self, device):
+        self.device = device
+
+    def set_device(self, device):
+        self.device = device
+
+
 class ComputerJoint(object):
     def __init__(self, variational_joint_empowerment):
         self.transition = variational_joint_empowerment.transition
         self.source = variational_joint_empowerment.source
         self.planning = variational_joint_empowerment.planning
-        self.plan_dev = variational_joint_empowerment.plan_dev
-        self.source_dev = variational_joint_empowerment.source_dev
-        self.trans_dev = variational_joint_empowerment.trans_dev
+
+        self.devices = variational_joint_empowerment.devices
 
     def compute(self, rewards, next_obs):
         with torch.no_grad():
@@ -27,8 +34,8 @@ class ComputerJoint(object):
             acs_src = []
             prob_src = []
             for no in next_obs:
-                acs_src.append(gumbel_softmax(self.source(no), device=self.source_dev, hard=True))
-                prob_src.append(gumbel_softmax(self.source(no), device=self.source_dev, hard=False))
+                acs_src.append(gumbel_softmax(self.source(no), device=self.devices.device, hard=True))
+                prob_src.append(gumbel_softmax(self.source(no), device=self.devices.device, hard=False))
 
             trans_in = torch.cat((*next_obs, *acs_src), dim=1)
             trans_out = self.transition(trans_in)
@@ -37,7 +44,7 @@ class ComputerJoint(object):
             for i, no in enumerate(next_obs):
                 nno = trans_out[:, i * n_obs:(i + 1) * n_obs]
                 plan_in = torch.cat((no, nno), dim=1)
-                prob_plan.append(gumbel_softmax(self.planning(plan_in), device=self.plan_dev, hard=False))
+                prob_plan.append(gumbel_softmax(self.planning(plan_in), device=self.devices.device, hard=False))
             prob_plan = torch.cat(prob_plan, dim=1)
             prob_src = torch.cat(prob_src, dim=1)
             acs_src = torch.cat(acs_src, dim=1)
@@ -46,39 +53,13 @@ class ComputerJoint(object):
             i_rews = E.mean() * torch.ones((1, rewards.shape[1]))
             return i_rews.numpy()
 
-    def prep_rollouts(self, device='cpu'):
-        self.transition.eval()
-        self.source.eval()
-        self.planning.eval()
-        if device == 'gpu':
-            fn = lambda x: x.cuda()
-        else:
-            fn = lambda x: x.cpu()
-        # only need main policy for rollouts
-        if not self.trans_dev == device:
-            self.transition = fn(self.transition)
-            self.trans_dev = device
-        if not self.source_dev == device:
-            self.source = fn(self.source)
-            self.source_dev = device
-        if not self.plan_dev == device:
-            self.planning = fn(self.planning)
-            self.plan_dev = device
-
-    def prepare_training(self, device):
-        self.trans_dev = device
-        self.source_dev = device
-        self.plan_dev = device
-
 
 class TrainerJoint(object):
     def __init__(self, variational_joint_empowerment):
         self.transition = variational_joint_empowerment.transition
         self.source = variational_joint_empowerment.source
         self.planning = variational_joint_empowerment.planning
-        self.plan_dev = variational_joint_empowerment.plan_dev
-        self.source_dev = variational_joint_empowerment.source_dev
-        self.trans_dev = variational_joint_empowerment.trans_dev
+        self.devices = variational_joint_empowerment.devices
 
         self.transition_optimizer = Adam(self.transition.parameters(), lr=variational_joint_empowerment.lr)
         self.planning_optimizer = Adam(self.planning.parameters(), lr=variational_joint_empowerment.lr)
@@ -100,7 +81,7 @@ class TrainerJoint(object):
         acs_plan = []
         for o, no in zip(obs, next_obs):
             plan_in = torch.cat((o, no), dim=1)
-            acs_plan.append(gumbel_softmax(self.planning(plan_in), device=self.plan_dev, hard=True))
+            acs_plan.append(gumbel_softmax(self.planning(plan_in), device=self.devices.device, hard=True))
         acs_plan = torch.cat(acs_plan, dim=1)
         acs_torch = torch.cat(acs, dim=1)
         plan_loss = MSELoss(acs_plan, acs_torch)
@@ -111,8 +92,8 @@ class TrainerJoint(object):
         acs_src = []
         prob_src = []
         for no in next_obs:
-            acs_src.append(gumbel_softmax(self.source(no), device=self.source_dev, hard=True))
-            prob_src.append(gumbel_softmax(self.source(no), device=self.source_dev, hard=False))
+            acs_src.append(gumbel_softmax(self.source(no), device=self.devices.device, hard=True))
+            prob_src.append(gumbel_softmax(self.source(no), device=self.devices.device, hard=False))
         with torch.no_grad():
             trans_in = torch.cat((*next_obs, *acs_src), dim=1)
             trans_out = self.transition(trans_in)
@@ -121,7 +102,7 @@ class TrainerJoint(object):
         for i, no in enumerate(next_obs):
             nno = trans_out[:, i * n_obs:(i + 1) * n_obs]
             plan_in = torch.cat((no, nno), dim=1)
-            prob_plan.append(gumbel_softmax(self.planning(plan_in), device=self.plan_dev, hard=False))
+            prob_plan.append(gumbel_softmax(self.planning(plan_in), device=self.devices.device, hard=False))
         prob_plan = torch.cat(prob_plan, dim=1)
         prob_src = torch.cat(prob_src, dim=1)
         acs_src = torch.cat(acs_src, dim=1)
@@ -139,30 +120,6 @@ class TrainerJoint(object):
                                self.niter)
         self.niter += 1
 
-    def prepare_training(self, device):
-        self.transition.train()
-        self.source.train()
-        self.planning.train()
-
-        if device == 'gpu':
-            fn = lambda x: x.cuda()
-        else:
-            fn = lambda x: x.cpu()
-        if not self.trans_dev == device:
-            self.transition = fn(self.transition)
-            self.trans_dev = device
-        if not self.source_dev == device:
-            self.source = fn(self.source)
-            self.source_dev = device
-        if not self.plan_dev == device:
-            self.planning = fn(self.planning)
-            self.plan_dev = device
-
-    def prep_rollouts(self, device='cpu'):
-        self.trans_dev = device
-        self.source_dev = device
-        self.plan_dev = device
-
 
 class VariationalJointEmpowerment(VariationalBaseEmpowerment):
     def __init__(self, init_params, lr=0.01):
@@ -172,9 +129,7 @@ class VariationalJointEmpowerment(VariationalBaseEmpowerment):
         self.planning = MLPNetwork(init_params['num_in_plan'], init_params['num_out_plan'], recurrent=True)
         self.lr = lr
 
-        self.trans_dev = 'cpu'  # device for transition
-        self.source_dev = 'cpu'
-        self.plan_dev = 'cpu'
+        self.devices = Devices('cpu')
 
         self.computer = ComputerJoint(self)
         self.trainer = TrainerJoint(self)
@@ -186,12 +141,37 @@ class VariationalJointEmpowerment(VariationalBaseEmpowerment):
         return self.trainer.update(sample, logger)
 
     def prep_training(self, device='gpu'):
-        self.trainer.prepare_training(device)
-        self.computer.prepare_training(device)
+        self.transition.train()
+        self.source.train()
+        self.planning.train()
+
+        if device == 'gpu':
+            fn = lambda x: x.cuda()
+        else:
+            fn = lambda x: x.cpu()
+        if not self.devices.device == device:
+            self.transition = fn(self.transition)
+            self.source = fn(self.source)
+            self.planning = fn(self.planning)
+
+        self.devices.set_device(device)
 
     def prep_rollouts(self, device='cpu'):
-        self.trainer.prep_rollouts(device)
-        self.computer.prep_rollouts(device)
+        self.transition.eval()
+        self.source.eval()
+        self.planning.eval()
+
+        if device == 'gpu':
+            fn = lambda x: x.cuda()
+        else:
+            fn = lambda x: x.cpu()
+        # only need main policy for rollouts
+        if not self.devices.device == device:
+            self.transition = fn(self.transition)
+            self.source = fn(self.source)
+            self.devices.planning = fn(self.planning)
+
+        self.devices.set_device(device)
 
     @classmethod
     def init_from_env(cls, env):
