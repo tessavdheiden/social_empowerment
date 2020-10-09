@@ -10,9 +10,12 @@ from utils.misc import gumbel_softmax
 from utils.networks import MLPNetwork
 
 
-class Devices(object):
+class Device(object):
     def __init__(self, device):
         self.device = device
+
+    def get_device(self):
+        return self.device
 
     def set_device(self, device):
         self.device = device
@@ -24,7 +27,7 @@ class ComputerJoint(object):
         self.source = variational_joint_empowerment.source
         self.planning = variational_joint_empowerment.planning
 
-        self.devices = variational_joint_empowerment.devices
+        self.device = variational_joint_empowerment.device
 
     def compute(self, rewards, next_obs):
         with torch.no_grad():
@@ -34,8 +37,8 @@ class ComputerJoint(object):
             acs_src = []
             prob_src = []
             for no in next_obs:
-                acs_src.append(gumbel_softmax(self.source(no), device=self.devices.device, hard=True))
-                prob_src.append(gumbel_softmax(self.source(no), device=self.devices.device, hard=False))
+                acs_src.append(gumbel_softmax(self.source(no), device=self.device.get_device(), hard=True))
+                prob_src.append(gumbel_softmax(self.source(no), device=self.device.get_device(), hard=False))
 
             trans_in = torch.cat((*next_obs, *acs_src), dim=1)
             trans_out = self.transition(trans_in)
@@ -44,7 +47,7 @@ class ComputerJoint(object):
             for i, no in enumerate(next_obs):
                 nno = trans_out[:, i * n_obs:(i + 1) * n_obs]
                 plan_in = torch.cat((no, nno), dim=1)
-                prob_plan.append(gumbel_softmax(self.planning(plan_in), device=self.devices.device, hard=False))
+                prob_plan.append(gumbel_softmax(self.planning(plan_in), device=self.device.get_device(), hard=False))
             prob_plan = torch.cat(prob_plan, dim=1)
             prob_src = torch.cat(prob_src, dim=1)
             acs_src = torch.cat(acs_src, dim=1)
@@ -59,7 +62,7 @@ class TrainerJoint(object):
         self.transition = variational_joint_empowerment.transition
         self.source = variational_joint_empowerment.source
         self.planning = variational_joint_empowerment.planning
-        self.devices = variational_joint_empowerment.devices
+        self.device = variational_joint_empowerment.device
 
         self.transition_optimizer = Adam(self.transition.parameters(), lr=variational_joint_empowerment.lr)
         self.planning_optimizer = Adam(self.planning.parameters(), lr=variational_joint_empowerment.lr)
@@ -81,7 +84,7 @@ class TrainerJoint(object):
         acs_plan = []
         for o, no in zip(obs, next_obs):
             plan_in = torch.cat((o, no), dim=1)
-            acs_plan.append(gumbel_softmax(self.planning(plan_in), device=self.devices.device, hard=True))
+            acs_plan.append(gumbel_softmax(self.planning(plan_in), device=self.device.get_device(), hard=True))
         acs_plan = torch.cat(acs_plan, dim=1)
         acs_torch = torch.cat(acs, dim=1)
         plan_loss = MSELoss(acs_plan, acs_torch)
@@ -92,8 +95,8 @@ class TrainerJoint(object):
         acs_src = []
         prob_src = []
         for no in next_obs:
-            acs_src.append(gumbel_softmax(self.source(no), device=self.devices.device, hard=True))
-            prob_src.append(gumbel_softmax(self.source(no), device=self.devices.device, hard=False))
+            acs_src.append(gumbel_softmax(self.source(no), device=self.device.get_device(), hard=True))
+            prob_src.append(gumbel_softmax(self.source(no), device=self.device.get_device(), hard=False))
         with torch.no_grad():
             trans_in = torch.cat((*next_obs, *acs_src), dim=1)
             trans_out = self.transition(trans_in)
@@ -102,7 +105,7 @@ class TrainerJoint(object):
         for i, no in enumerate(next_obs):
             nno = trans_out[:, i * n_obs:(i + 1) * n_obs]
             plan_in = torch.cat((no, nno), dim=1)
-            prob_plan.append(gumbel_softmax(self.planning(plan_in), device=self.devices.device, hard=False))
+            prob_plan.append(gumbel_softmax(self.planning(plan_in), device=self.device.get_device(), hard=False))
         prob_plan = torch.cat(prob_plan, dim=1)
         prob_src = torch.cat(prob_src, dim=1)
         acs_src = torch.cat(acs_src, dim=1)
@@ -129,7 +132,7 @@ class VariationalJointEmpowerment(VariationalBaseEmpowerment):
         self.planning = MLPNetwork(init_params['num_in_plan'], init_params['num_out_plan'], recurrent=True)
         self.lr = lr
 
-        self.devices = Devices('cpu')
+        self.device = Device('cpu')
 
         self.computer = ComputerJoint(self)
         self.trainer = TrainerJoint(self)
@@ -149,12 +152,12 @@ class VariationalJointEmpowerment(VariationalBaseEmpowerment):
             fn = lambda x: x.cuda()
         else:
             fn = lambda x: x.cpu()
-        if not self.devices.device == device:
+        if not self.device.get_device() == device:
             self.transition = fn(self.transition)
             self.source = fn(self.source)
             self.planning = fn(self.planning)
 
-        self.devices.set_device(device)
+        self.device.set_device(device)
 
     def prep_rollouts(self, device='cpu'):
         self.transition.eval()
@@ -166,12 +169,12 @@ class VariationalJointEmpowerment(VariationalBaseEmpowerment):
         else:
             fn = lambda x: x.cpu()
         # only need main policy for rollouts
-        if not self.devices.device == device:
+        if not self.device.get_device() == device:
             self.transition = fn(self.transition)
             self.source = fn(self.source)
-            self.devices.planning = fn(self.planning)
+            self.planning = fn(self.planning)
 
-        self.devices.set_device(device)
+        self.device.set_device(device)
 
     @classmethod
     def init_from_env(cls, env):

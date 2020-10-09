@@ -204,11 +204,10 @@ class VariationalTransferAllActionPiEmpowerment(VariationalBaseEmpowerment):
     def prep_training(self, device='gpu'):
         self.computer.prepare_training(device)
         self.trainer.prepare_training(device)
-        self.transition.train()
 
     def prep_rollouts(self, device='cpu'):
-        self.computer.prep_rollouts()
-        self.trainer.prep_rollouts()
+        self.computer.prep_rollouts(device)
+        self.trainer.prep_rollouts(device)
 
     @classmethod
     def init(cls, agents, env, lr=0.01, hidden_dim=64, recurrent=False, convolutional=False):
