@@ -95,15 +95,11 @@ class TrainerTransferAllActionPi(object):
         self.agents = empowerment.agents
 
         self.transition_optimizer = Adam(self.transition.parameters(), lr=empowerment.lr)
-        params_planning = []
-        for mlp in self.planning: params_planning += list(mlp.parameters())
+        flatten = lambda l: [item for sublist in l for item in sublist]
+        params_planning = flatten([list((mlp.parameters())) for mlp in self.planning])
         self.planning_optimizer = Adam(params_planning, lr=empowerment.lr)
-        params_source = []
-        for mlp in self.source: params_source += list(mlp.parameters())
-        params_agents = []
-        for a in self.agents:
-            params_agents += list(a.policy.parameters()) + list(a.critic.parameters())
-
+        params_source = flatten([list((mlp.parameters())) for mlp in self.source])
+        params_agents = flatten([list(a.policy.parameters()) + list(a.critic.parameters()) for a in self.agents])
         self.source_optimizer = Adam(params_source + params_planning + params_agents, lr=empowerment.lr)
         self.niter = 0
 
