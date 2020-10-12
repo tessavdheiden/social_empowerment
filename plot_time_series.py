@@ -1,5 +1,6 @@
 import argparse
 import numpy as np
+import math
 from numpy import load
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -50,15 +51,21 @@ def plot_snapshots_grid(config, all_infos, all_images, all_positions, stats_path
     plt.savefig(f'{stats_path}/rewards_snapshots_episode_{config.ep_num}.png')
 
 
-def plot_all_in_one(config, all_infos, all_images, all_positions, stats_path):
-    fig, ax = plt.subplots(1, 1)
+def plot_all_in_one(config, all_infos, all_images, all_positions, stats_path, alpha=0.1):
+    n_tot = len(list(ImageSequence.Iterator(all_images)))
+    n_img = 20
+    imgs = [None]*n_img
+    indeces = np.around(np.linspace(0, n_tot - n_img, n_img))
+    for i in range(0, n_img):
+        idx = math.floor(indeces[i])
+        imgs[i] = ImageSequence.Iterator(all_images)[idx].convert("RGBA")
 
-    for i, frame in enumerate(ImageSequence.Iterator(all_images)):
-        if i % 20 != 0: continue
-        ax.imshow(frame, alpha=.1), ax.set_xticks([]), ax.set_yticks([])
-        ax.set_xlabel(f"{i}")
+    blended = Image.blend(imgs[0], imgs[1], alpha=alpha)
+    for i in range(2, n_img):
+        blended = Image.blend(blended, imgs[i], alpha=alpha)
 
-    plt.savefig(f'{stats_path}/all_in_one_{config.ep_num}.png')
+    blended = Image.blend(blended, imgs[-1], alpha=alpha)
+    blended.save(f'{stats_path}/all_in_one_{config.ep_num}.png')
 
 
 if __name__ == '__main__':
