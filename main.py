@@ -37,22 +37,13 @@ def make_parallel_env(env_id, n_rollout_threads, seed, discrete_action):
     else:
         return SubprocVecEnv([get_env_fn(i) for i in range(n_rollout_threads)])
 
-def create_empowerment(config, agents, env):
+
+def create_intrinsic_motivators(config, agents, env):
     modules = [DummyEmpowerment(agents)]
-    if config.joint_empowerment:
-        modules.append(JointEmpowerment(agents))
-    if config.transfer_empowerment:
-        modules.append(TransferEmpowerment(agents))
     if config.variational_joint_empowerment:
         modules.append(VariationalJointEmpowerment.init_from_env(env))
-    if config.variational_transfer_empowerment:
-        modules.append(VariationalTransferEmpowerment.init_from_env(env))
-    if config.variational_transfer_action_empowerment:
-        modules.append(VariationalTransferActionEmpowerment.init_from_env(env))
     if config.variational_transfer_all_action_pi_empowerment:
         modules.append(VariationalTransferAllActionPiEmpowerment.init(agents, env))
-    if config.variational_transfer_single_action_pi_empowerment:
-        modules.append(VariationalTransferSingleActionPiEmpowerment.init(agents, env))
     return modules
 
 
@@ -114,7 +105,7 @@ def run(config):
                                  sum(acsp.high - acsp.low + 1) for acsp in env.action_space])
     t = 0
 
-    empowerment_modules = create_empowerment(config, maddpg.agents, env)
+    intrinsic_modules = create_intrinsic_motivators(config, maddpg.agents, env)
 
     for ep_i in range(ep_st, config.n_episodes, config.n_rollout_threads):
         print("Episodes %i-%i of %i" % (ep_i + 1,
@@ -123,7 +114,7 @@ def run(config):
         obs = env.reset()
         # obs.shape = (n_rollout_threads, nagent)(nobs), nobs differs per agent so not tensor
         maddpg.prep_rollouts(device='cpu')
-        [e.prep_rollouts(device='cpu') for e in empowerment_modules]
+        [im.prep_rollouts(device='cpu') for im in intrinsic_modules]
 
         explr_pct_remaining = max(0, config.n_exploration_eps - ep_i) / config.n_exploration_eps
         maddpg.scale_noise(config.final_noise_scale + (config.init_noise_scale - config.final_noise_scale) * explr_pct_remaining)
@@ -142,7 +133,7 @@ def run(config):
             actions = [[ac[i] for ac in agent_actions] for i in range(config.n_rollout_threads)]
             next_obs, rewards, dones, infos = env.step(actions)
 
-            emps = np.sum(np.asarray([e.compute(rewards, next_obs) for e in empowerment_modules]), axis=0)
+            emps = np.sum(np.asarray([im.compute(rewards, next_obs) for im in intrinsic_modules]), axis=0)
 
             replay_buffer.push(obs, agent_actions, rewards, emps, next_obs, dones)
             obs = next_obs
@@ -151,19 +142,19 @@ def run(config):
                 (t % config.steps_per_update) < config.n_rollout_threads):
                 if USE_CUDA:
                     maddpg.prep_training(device='gpu')
-                    [e.prep_training(device='gpu') for e in empowerment_modules]
+                    [im.prep_training(device='gpu') for im in intrinsic_modules]
                 else:
                     maddpg.prep_training(device='cpu')
-                    [e.prep_training(device='cpu') for e in empowerment_modules]
+                    [im.prep_training(device='cpu') for im in intrinsic_modules]
                 for u_i in range(config.n_rollout_threads):
                     for a_i in range(maddpg.nagents):
                         sample = replay_buffer.sample(config.batch_size,
                                                       to_gpu=USE_CUDA)
                         maddpg.update(sample, a_i, logger=logger)
-                        [e.update(sample, logger=logger) for e in empowerment_modules]
+                        [im.update(sample, logger=logger) for im in intrinsic_modules]
                     maddpg.update_all_targets()
                 maddpg.prep_rollouts(device='cpu')
-                [e.prep_rollouts(device='cpu') for e in empowerment_modules]
+                [im.prep_rollouts(device='cpu') for im in intrinsic_modules]
 
                 print(f'computation time = {time.time() - start:.3f}s buffer length = {len(replay_buffer)}')
         ep_rews = replay_buffer.get_average_rewards(
@@ -224,21 +215,11 @@ if __name__ == '__main__':
                         action='store_true')
     parser.add_argument("--convolutional",
                         action='store_true')
-    parser.add_argument("--joint_empowerment",
-                        action='store_true')
     parser.add_argument("--variational_joint_empowerment",
-                        action='store_true')
-    parser.add_argument("--transfer_empowerment",
-                        action='store_true')
-    parser.add_argument("--variational_transfer_empowerment",
-                        action='store_true')
-    parser.add_argument("--variational_transfer_action_empowerment",
-                        action='store_true')
-    parser.add_argument("--variational_transfer_action_pi_empowerment",
                         action='store_true')
     parser.add_argument("--variational_transfer_all_action_pi_empowerment",
                         action='store_true')
-    parser.add_argument("--variational_transfer_single_action_pi_empowerment",
+    parser.add_argument("--social_influence",
                         action='store_true')
     config = parser.parse_args()
 

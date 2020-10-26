@@ -10,14 +10,23 @@ from utils.misc import gumbel_softmax
 from utils.networks import MLPNetwork
 
 
+class Device(object):
+    def __init__(self, device):
+        self.device = device
+
+    def get_device(self):
+        return self.device
+
+    def set_device(self, device):
+        self.device = device
+
+
 class ComputerTransferAllActionPi(object):
     def __init__(self, empowerment):
         self.transition = empowerment.transition
         self.source = empowerment.source
         self.planning = empowerment.planning
-        self.plan_dev = empowerment.plan_dev
-        self.source_dev = empowerment.source_dev
-        self.trans_dev = empowerment.trans_dev
+        self.device = empowerment.device
         self.agents = empowerment.agents
 
     def compute(self, rewards, next_obs):
@@ -28,8 +37,8 @@ class ComputerTransferAllActionPi(object):
             acs_src = []
             prob_src = []
             for no, source in zip(next_obs, self.source):
-                acs_src.append(gumbel_softmax(source(no), device=self.source_dev, hard=True))
-                prob_src.append(gumbel_softmax(source(no), device=self.source_dev, hard=False))
+                acs_src.append(gumbel_softmax(source(no), device=self.device.get_device(), hard=True))
+                prob_src.append(gumbel_softmax(source(no), device=self.device.get_device(), hard=False))
 
             trans_in = torch.cat((*next_obs, *acs_src), dim=1)
             trans_out = self.transition(trans_in)
@@ -41,11 +50,11 @@ class ComputerTransferAllActionPi(object):
                 acs_ = []
                 for j, ac in enumerate(acs_src):
                     if j == i: continue
-                    acs_.append(gumbel_softmax(self.agents[j].policy(nno), device=self.source_dev, hard=True))
+                    acs_.append(gumbel_softmax(self.agents[j].policy(nno), device=self.device.get_device(), hard=True))
                 acs_ = torch.cat(acs_, dim=1)
                 plan_in = torch.cat((no, nno, acs_), dim=1)
 
-                prob_plan.append(gumbel_softmax(planning(plan_in), device=self.plan_dev, hard=False))
+                prob_plan.append(gumbel_softmax(planning(plan_in), device=self.device.get_device(), hard=False))
             prob_plan = torch.cat(prob_plan, dim=1)
             prob_src = torch.cat(prob_src, dim=1)
             acs_src = torch.cat(acs_src, dim=1)
@@ -54,44 +63,13 @@ class ComputerTransferAllActionPi(object):
             i_rews = E.mean() * torch.ones((1, rewards.shape[1]))
             return i_rews.numpy()
 
-    def prep_rollouts(self, device='cpu'):
-        self.transition.eval()
-        if device == 'gpu':
-            fn = lambda x: x.cuda()
-        else:
-            fn = lambda x: x.cpu()
-        # only need main policy for rollouts
-        if not self.trans_dev == device:
-            self.transition = fn(self.transition)
-            self.trans_dev = device
-        self.transition.eval()
-        if not self.source_dev == device:
-            for source in self.source:
-                source = fn(source)
-            self.source_dev = device
-        for source in self.source:
-            source.eval()
-        if not self.plan_dev == device:
-            for planning in self.planning:
-                planning = fn(planning)
-            self.plan_dev = device
-        for planning in self.planning:
-            planning.eval()
-
-    def prepare_training(self, device):
-        self.trans_dev = device
-        self.source_dev = device
-        self.plan_dev = device
-
 
 class TrainerTransferAllActionPi(object):
     def __init__(self, empowerment):
         self.transition = empowerment.transition
         self.source = empowerment.source
         self.planning = empowerment.planning
-        self.plan_dev = empowerment.plan_dev
-        self.source_dev = empowerment.source_dev
-        self.trans_dev = empowerment.trans_dev
+        self.device = empowerment.device
         self.agents = empowerment.agents
 
         self.transition_optimizer = Adam(self.transition.parameters(), lr=empowerment.lr)
@@ -117,8 +95,8 @@ class TrainerTransferAllActionPi(object):
         acs_src = []
         prob_src = []
         for no, source in zip(next_obs, self.source):
-            acs_src.append(gumbel_softmax(source(no), device=self.source_dev, hard=True))
-            prob_src.append(gumbel_softmax(source(no), device=self.source_dev, hard=False))
+            acs_src.append(gumbel_softmax(source(no), device=self.device.get_device(), hard=True))
+            prob_src.append(gumbel_softmax(source(no), device=self.device.get_device(), hard=False))
         with torch.no_grad():
             trans_in = torch.cat((*next_obs, *acs_src), dim=1)
             trans_out = self.transition(trans_in)
@@ -130,10 +108,10 @@ class TrainerTransferAllActionPi(object):
             acs_ = []
             for j, ac in enumerate(acs):
                 if j == i: continue
-                acs_.append(gumbel_softmax(self.agents[j].policy(nno), device=self.source_dev, hard=True))
+                acs_.append(gumbel_softmax(self.agents[j].policy(nno), device=self.device.get_device(), hard=True))
             acs_ = torch.cat(acs_, dim=1)
             plan_in = torch.cat((no, nno, acs_), dim=1)
-            prob_plan.append(gumbel_softmax(planning(plan_in), device=self.plan_dev, hard=False))
+            prob_plan.append(gumbel_softmax(planning(plan_in), device=self.device.get_device(), hard=False))
             start += length
         prob_plan = torch.cat(prob_plan, dim=1)
         prob_src = torch.cat(prob_src, dim=1)
@@ -151,31 +129,6 @@ class TrainerTransferAllActionPi(object):
                                self.niter)
         self.niter += 1
 
-    def prepare_training(self, device):
-        self.transition.train()
-        if device == 'gpu':
-            fn = lambda x: x.cuda()
-        else:
-            fn = lambda x: x.cpu()
-        if not self.trans_dev == device:
-            self.transition = fn(self.transition)
-            self.trans_dev = device
-        if not self.source_dev == device:
-            for source in self.source:
-                source = fn(source)
-                source.train()
-            self.source_dev = device
-        if not self.plan_dev == device:
-            for planning in self.planning:
-                planning = fn(planning)
-                planning.train()
-            self.plan_dev = device
-
-    def prep_rollouts(self, device='cpu'):
-        self.trans_dev = device
-        self.source_dev = device
-        self.plan_dev = device
-
 
 class VariationalTransferAllActionPiEmpowerment(VariationalBaseEmpowerment):
     def __init__(self, agents, init_params, num_in_trans, num_out_trans, lr=0.01, hidden_dim=64, recurrent=False,
@@ -188,10 +141,7 @@ class VariationalTransferAllActionPiEmpowerment(VariationalBaseEmpowerment):
 
         self.lr = lr
 
-        self.trans_dev = 'cpu'  # device for transition
-        self.source_dev = 'cpu'
-        self.plan_dev = 'cpu'
-
+        self.device = Device('cpu')
         self.computer = ComputerTransferAllActionPi(self)
         self.trainer = TrainerTransferAllActionPi(self)
 
@@ -202,12 +152,45 @@ class VariationalTransferAllActionPiEmpowerment(VariationalBaseEmpowerment):
         return self.trainer.update(sample, logger)
 
     def prep_training(self, device='gpu'):
-        self.computer.prepare_training(device)
-        self.trainer.prepare_training(device)
+        self.transition.train()
+        for source in self.source:
+            source.train()
+        for planning in self.planning:
+            planning.train()
+
+        if device == 'gpu':
+            fn = lambda x: x.cuda()
+        else:
+            fn = lambda x: x.cpu()
+        if not self.device.get_device() == device:
+            self.transition = fn(self.transition)
+            for source in self.source:
+                source = fn(source)
+            for planning in self.planning:
+                planning = fn(planning)
+
+        self.device.set_device(device)
 
     def prep_rollouts(self, device='cpu'):
-        self.computer.prep_rollouts(device)
-        self.trainer.prep_rollouts(device)
+        self.transition.eval()
+        for planning in self.planning:
+            planning.eval()
+        for source in self.source:
+            source.eval()
+
+        if device == 'gpu':
+            fn = lambda x: x.cuda()
+        else:
+            fn = lambda x: x.cpu()
+        # only need main policy for rollouts
+        if not self.device.get_device() == device:
+            self.transition = fn(self.transition)
+            for source in self.source:
+                source = fn(source)
+            for planning in self.planning:
+                planning = fn(planning)
+
+        self.device.set_device(device)
 
     @classmethod
     def init(cls, agents, env, lr=0.01, hidden_dim=64, recurrent=False, convolutional=False):
