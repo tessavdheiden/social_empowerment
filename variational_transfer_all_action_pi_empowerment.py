@@ -8,17 +8,7 @@ MSELoss = torch.nn.MSELoss()
 from variational_empowerment import VariationalBaseEmpowerment
 from utils.misc import gumbel_softmax
 from utils.networks import MLPNetwork
-
-
-class Device(object):
-    def __init__(self, device):
-        self.device = device
-
-    def get_device(self):
-        return self.device
-
-    def set_device(self, device):
-        self.device = device
+from empowerment import Device
 
 
 class ComputerTransferAllActionPi(object):

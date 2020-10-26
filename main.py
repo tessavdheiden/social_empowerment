@@ -12,16 +12,12 @@ from utils.make_env import make_env
 from utils.buffer import ReplayBuffer
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 from algorithms.maddpg import MADDPG
-from empowerment import DummyEmpowerment, JointEmpowerment, TransferEmpowerment
+from empowerment import DummyEmpowerment
 from variational_joint_empowerment import VariationalJointEmpowerment
-from variational_transfer_empowerment import VariationalTransferEmpowerment
-from variational_transfer_action_empowerment import VariationalTransferActionEmpowerment
 from variational_transfer_all_action_pi_empowerment import VariationalTransferAllActionPiEmpowerment
-from variational_transfer_single_action_pi_empowerment import VariationalTransferSingleActionPiEmpowerment
+from social_influence import SocialInfluence
 
 USE_CUDA = torch.cuda.is_available()
-
-
 
 
 def make_parallel_env(env_id, n_rollout_threads, seed, discrete_action):
@@ -44,6 +40,8 @@ def create_intrinsic_motivators(config, agents, env):
         modules.append(VariationalJointEmpowerment.init_from_env(env))
     if config.variational_transfer_all_action_pi_empowerment:
         modules.append(VariationalTransferAllActionPiEmpowerment.init(agents, env))
+    if config.social_influence:
+        modules.append(SocialInfluence.init(agents, env))
     return modules
 
 
