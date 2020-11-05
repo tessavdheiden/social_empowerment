@@ -31,18 +31,21 @@ class Computer(object):
             trans_in = torch.cat((*next_obs, *acs_pi), dim=1)
             trans_out = self.transition(trans_in)
             prob_plan = []
-            start = 0
+
+            end_idx = [0] + np.cumsum([ne_ob.shape[1] for ne_ob in next_obs]).tolist()
+            start_end = [(start, end) for start, end in zip(end_idx, end_idx[1:])]
             for i, (no, planning) in enumerate(zip(next_obs, self.planning)):
-                length = no.shape[1]
-                nno = trans_out[:, start:start + length]
+                nno = trans_out[:, start_end[i][0]:start_end[i][1]]
                 acs_ = []
                 for j, ac in enumerate(acs_pi):
-                    if j == i: continue
-                    acs_.append(gumbel_softmax(self.agents[j].policy(nno), device=self.device.get_device(), hard=True))
+                    if j == i: continue # computing effect on other agent
+                    nno_other = trans_out[:, start_end[j][0]:start_end[j][1]]
+                    acs_.append(gumbel_softmax(self.agents[j].policy(nno_other), device=self.device.get_device(), hard=True))
                 acs_ = torch.cat(acs_, dim=1)
                 plan_in = torch.cat((no, nno, acs_), dim=1)
 
                 prob_plan.append(gumbel_softmax(planning(plan_in), device=self.device.get_device(), hard=False))
+
             prob_plan = torch.cat(prob_plan, dim=1)
             prob_pi = torch.cat(prob_pi, dim=1)
             acs_pi = torch.cat(acs_pi, dim=1)
@@ -63,7 +66,7 @@ class Trainer(object):
         flatten = lambda l: [item for sublist in l for item in sublist]
         params_planning = flatten([list((mlp.parameters())) for mlp in self.planning])
         params_agents = flatten([list(a.policy.parameters()) for a in self.agents])
-        self.pi_optimizer = Adam(params_planning + params_agents, lr=si.lr)
+        self.pi_optimizer = Adam(params_agents, lr=si.lr)
         self.niter = 0
 
     def update(self, sample, logger):
@@ -77,7 +80,6 @@ class Trainer(object):
         trans_loss.backward()
         self.transition_optimizer.step()
 
-        self.pi_optimizer.zero_grad()
         acs_pi = []
         prob_pi = []
         for no, pi in zip(next_obs, self.agents):
@@ -87,26 +89,29 @@ class Trainer(object):
             trans_in = torch.cat((*next_obs, *acs_pi), dim=1)
             trans_out = self.transition(trans_in)
         prob_plan = []
-        start = 0
+
+        end_idx = [0] + np.cumsum([ne_ob.shape[1] for ne_ob in next_obs]).tolist()
+        start_end = [(start, end) for start, end in zip(end_idx, end_idx[1:])]
         for i, (no, planning) in enumerate(zip(next_obs, self.planning)):
-            length = no.shape[1]
-            nno = trans_out[:, start:start + length]
+            nno = trans_out[:, start_end[i][0]:start_end[i][1]]
             acs_ = []
             for j, ac in enumerate(acs):
                 if j == i: continue
-                acs_.append(gumbel_softmax(self.agents[j].policy(nno), device=self.device.get_device(), hard=True))
+                nno_other = trans_out[:, start_end[j][0]:start_end[j][1]]
+                acs_.append(gumbel_softmax(self.agents[j].policy(nno_other), device=self.device.get_device(), hard=True))
             acs_ = torch.cat(acs_, dim=1)
             plan_in = torch.cat((no, nno, acs_), dim=1)
             prob_plan.append(gumbel_softmax(planning(plan_in), device=self.device.get_device(), hard=False))
-            start += length
+
         prob_plan = torch.cat(prob_plan, dim=1)
         prob_pi = torch.cat(prob_pi, dim=1)
         acs_pi = torch.cat(acs_pi, dim=1)
 
+        #self.pi_optimizer.zero_grad()
         SI = acs_pi * prob_plan - acs_pi * prob_pi
         i_rews = -SI.mean()
-        i_rews.backward()
-        self.pi_optimizer.step()
+        #i_rews.backward()
+        #self.pi_optimizer.step()
 
         if logger is not None:
             logger.add_scalars('si/losses',
