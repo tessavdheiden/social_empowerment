@@ -19,39 +19,34 @@ class ComputerTransferAllActionPi(object):
         self.device = empowerment.device
         self.agents = empowerment.agents
 
-    def compute(self, rewards, next_obs):
-        with torch.no_grad():
-            next_obs = [Variable(torch.Tensor(np.vstack(next_obs[:, i])),
-                      requires_grad=False) for i in range(rewards.shape[1])]
+    def compute(self, next_obs):
+        acs_src = []
+        prob_src = []
+        for no, source in zip(next_obs, self.source):
+            acs_src.append(gumbel_softmax(source(no), device=self.device.get_device(), hard=True))
+            prob_src.append(gumbel_softmax(source(no), device=self.device.get_device(), hard=False))
 
-            acs_src = []
-            prob_src = []
-            for no, source in zip(next_obs, self.source):
-                acs_src.append(gumbel_softmax(source(no), device=self.device.get_device(), hard=True))
-                prob_src.append(gumbel_softmax(source(no), device=self.device.get_device(), hard=False))
+        trans_in = torch.cat((*next_obs, *acs_src), dim=1)
+        trans_out = self.transition(trans_in)
+        prob_plan = []
+        end_idx = [0] + np.cumsum([ne_ob.shape[1] for ne_ob in next_obs]).tolist()
+        start_end = [(start, end) for start, end in zip(end_idx, end_idx[1:])]
+        for i, (no, planning) in enumerate(zip(next_obs, self.planning)):
+            nno = trans_out[:, start_end[i][0]:start_end[i][1]]
+            acs_ = []
+            for j, ac in enumerate(acs_src):
+                if j == i: continue
+                nno_other = trans_out[:, start_end[j][0]:start_end[j][1]]
+                acs_.append(gumbel_softmax(self.agents[j].policy(nno_other), device=self.device.get_device(), hard=True))
+            acs_ = torch.cat(acs_, dim=1)
+            plan_in = torch.cat((no, nno, acs_), dim=1)
 
-            trans_in = torch.cat((*next_obs, *acs_src), dim=1)
-            trans_out = self.transition(trans_in)
-            prob_plan = []
-            start = 0
-            for i, (no, planning) in enumerate(zip(next_obs, self.planning)):
-                length = no.shape[1]
-                nno = trans_out[:, start:start + length]
-                acs_ = []
-                for j, ac in enumerate(acs_src):
-                    if j == i: continue
-                    acs_.append(gumbel_softmax(self.agents[j].policy(nno), device=self.device.get_device(), hard=True))
-                acs_ = torch.cat(acs_, dim=1)
-                plan_in = torch.cat((no, nno, acs_), dim=1)
+            prob_plan.append(gumbel_softmax(planning(plan_in), device=self.device.get_device(), hard=False))
+        prob_plan = torch.cat(prob_plan, dim=1)
+        prob_src = torch.cat(prob_src, dim=1)
+        acs_src = torch.cat(acs_src, dim=1)
 
-                prob_plan.append(gumbel_softmax(planning(plan_in), device=self.device.get_device(), hard=False))
-            prob_plan = torch.cat(prob_plan, dim=1)
-            prob_src = torch.cat(prob_src, dim=1)
-            acs_src = torch.cat(acs_src, dim=1)
-
-            E = acs_src * prob_plan - acs_src * prob_src
-            i_rews = E.mean() * torch.ones((1, rewards.shape[1]))
-            return i_rews.numpy()
+        return acs_src * prob_plan - acs_src * prob_src
 
 
 class TrainerTransferAllActionPi(object):
@@ -61,6 +56,7 @@ class TrainerTransferAllActionPi(object):
         self.planning = empowerment.planning
         self.device = empowerment.device
         self.agents = empowerment.agents
+        self.computer = empowerment.computer
 
         self.transition_optimizer = Adam(self.transition.parameters(), lr=empowerment.lr)
         flatten = lambda l: [item for sublist in l for item in sublist]
@@ -82,32 +78,7 @@ class TrainerTransferAllActionPi(object):
         self.transition_optimizer.step()
 
         self.source_optimizer.zero_grad()
-        acs_src = []
-        prob_src = []
-        for no, source in zip(next_obs, self.source):
-            acs_src.append(gumbel_softmax(source(no), device=self.device.get_device(), hard=True))
-            prob_src.append(gumbel_softmax(source(no), device=self.device.get_device(), hard=False))
-        with torch.no_grad():
-            trans_in = torch.cat((*next_obs, *acs_src), dim=1)
-            trans_out = self.transition(trans_in)
-        prob_plan = []
-        start = 0
-        for i, (no, planning) in enumerate(zip(next_obs, self.planning)):
-            length = no.shape[1]
-            nno = trans_out[:, start:start + length]
-            acs_ = []
-            for j, ac in enumerate(acs):
-                if j == i: continue
-                acs_.append(gumbel_softmax(self.agents[j].policy(nno), device=self.device.get_device(), hard=True))
-            acs_ = torch.cat(acs_, dim=1)
-            plan_in = torch.cat((no, nno, acs_), dim=1)
-            prob_plan.append(gumbel_softmax(planning(plan_in), device=self.device.get_device(), hard=False))
-            start += length
-        prob_plan = torch.cat(prob_plan, dim=1)
-        prob_src = torch.cat(prob_src, dim=1)
-        acs_src = torch.cat(acs_src, dim=1)
-
-        E = acs_src * prob_plan - acs_src * prob_src
+        E = self.computer.compute(next_obs)
         i_rews = -E.mean()
         i_rews.backward()
         self.source_optimizer.step()
@@ -136,10 +107,14 @@ class VariationalTransferAllActionPiEmpowerment(VariationalBaseEmpowerment):
         self.trainer = TrainerTransferAllActionPi(self)
 
     def compute(self, rewards, next_obs):
-        return self.computer.compute(rewards, next_obs)
+        next_obs = [Variable(torch.Tensor(np.vstack(next_obs[:, i])),
+                             requires_grad=False) for i in range(next_obs.shape[1])]
+        E = self.computer.compute(next_obs)
+        i_rews = E.mean() * torch.ones((1, rewards.shape[1]))
+        return i_rews.detach().numpy()
 
     def update(self, sample, logger=None):
-        return self.trainer.update(sample, logger)
+        self.trainer.update(sample, logger)
 
     def prep_training(self, device='gpu'):
         self.transition.train()
