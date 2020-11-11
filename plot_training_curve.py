@@ -9,13 +9,12 @@ import matplotlib.pyplot as plt
 
 colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
                    [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15],
-                   [0.15, 0.15, 0.15], [0.65, 0.65, 0.65]])
+                   [0.15, 0.15, 0.15], [0.65, 0.65, 0.65], [0.5, 0.5, 0.5], [0.6, 0.6, 0.6], [0.9, 0.9, 0.9]])
 
 
 def load_data(file_path, name, agent_num=0):
     cast = lambda x: np.array(x)
     with open(file_path) as json_file:
-        print(json_file)
         data = json.load(json_file)
         for key, value in data.items():
             if key.split('/')[-1] == name and int(key.split('/')[-3][-1]) == agent_num:
@@ -27,55 +26,49 @@ def plot_data(y, alg_name, color, ax, subsample=10):
     y = y[:len(y)-(len(y)%subsample)]
     mean = np.mean(y.reshape(-1, subsample), axis=1)
     std = np.std(y.reshape(-1, subsample), axis=1)
-
     ax.plot(np.arange(mean.shape[0]), mean, color=color, label=alg_name)
     ax.fill_between(np.arange(mean.shape[0]), mean - std, mean + std, color=color, alpha=0.2)
     ax.grid('on')
     ax.set_xlabel('TrainSteps')
-    #ax.legend()
 
 
 def plot_training_curve(config):
     plt.rc('font', family='serif')
     model_path = Path('./models') / config.env_id
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 5))
+    color_list = {'maddpg': [0.65, 0.15, 0.15], 'ddpg': [0.15, 0.65, 0.15], 'maddpg+ve3': [0.15, 0.15, 0.65],
+                  'maddpg+si': [0.65, 0.15, 0.65]}
 
-    n_files = 0
-    curve1 = 'pol_loss'
+    curve_name = 'rew_loss' # 'pol_loss'  'vf_loss'
     agent_num = 0
+    axis = 1
+    curve = {}
     for r, d, f in os.walk(model_path):
         for file in f:
             if file.endswith(".json"):
-                file_path = os.path.join(r, file)
-                print(f'agent {curve1 + str(agent_num)} file_path = {file_path}')
-                y1 = load_data(file_path, name=curve1, agent_num=agent_num)
-                plot_data(y1,  alg_name=r.split('/')[2], color=colors[n_files], ax=ax[0], subsample=50)
-                n_files += 1
+                algorithm_name = r.split('/')[2]
+                run = r.split('/')[3][-1]
 
-    n_files = 0
-    curve2 = 'rew_loss'
-    for r, d, f in os.walk(model_path):
-        for file in f:
-            if file.endswith(".json"):
+                if algorithm_name not in color_list: continue
                 file_path = os.path.join(r, file)
-                y1 = load_data(file_path, name=curve2, agent_num=agent_num)
-                plot_data(y1,  alg_name=r.split('/')[2], color=colors[n_files], ax=ax[1], subsample=300)
-                n_files += 1
+                y = load_data(file_path, name=curve_name, agent_num=agent_num)
+                if algorithm_name in curve:
+                    curve[algorithm_name] += y
+                    curve[algorithm_name] /= 2
+                else:
+                    curve[algorithm_name] = y
 
-    n_files = 0
-    curve3 = 'vf_loss'
-    for r, d, f in os.walk(model_path):
-        for file in f:
-            if file.endswith(".json"):
-                file_path = os.path.join(r, file)
-                y1 = load_data(file_path, name=curve3, agent_num=agent_num)
-                plot_data(y1,  alg_name=r.split('/')[2], color=colors[n_files], ax=ax[2], subsample=50)
-                n_files += 1
+    for (algorithm_name, y) in curve.items():
+        plot_data(y, alg_name=algorithm_name, color=color_list[algorithm_name], ax=ax[axis], subsample=500)
+    ax[axis].set_ylabel('AvarageReturn', fontsize=11)
+    #ax[axis].legend()
+    #ax[1].set_ylim([-8, -5])
+
 
     ax[0].set_ylabel('PolicyLoss', fontsize=11)
-    ax[1].set_ylabel('AvarageReturn', fontsize=11)
     ax[2].set_ylabel('CriticLoss', fontsize=11)
     ax[0].legend()
+
 
     plt.tight_layout()
     plt.savefig(model_path / f'learning_curve_agent{agent_num}.png')

@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch.optim import Adam
 from torch.autograd import Variable
+import torch.nn.functional as F
 MSELoss = torch.nn.MSELoss()
 
 
@@ -17,42 +18,79 @@ class Computer(object):
         self.device = si.device
         self.agents = si.agents
 
-    def compute(self, rewards, next_obs):
-        with torch.no_grad():
-            next_obs = [Variable(torch.Tensor(np.vstack(next_obs[:, i])),
-                      requires_grad=False) for i in range(rewards.shape[1])]
+    def compute(self, next_obs):
+        # acs_pi_k = []
+        # prob_pi_k = []
+        # for no, pi in zip(next_obs, self.agents):
+        #     acs_pi_k.append(gumbel_softmax(pi.policy(no), device=self.device.get_device(), hard=True))
+        #     prob_pi_k.append(F.softmax(pi.policy(no), dim=1).unsqueeze(1))  # for stacking later, dim = [B, 1, A]
+        #
+        # final_obs = self.transition(torch.cat((*next_obs, *acs_pi_k), dim=1))
+        #
+        # end_idx = [0] + np.cumsum([ne_ob.shape[1] for ne_ob in next_obs]).tolist()
+        # start_end = [(start, end) for start, end in zip(end_idx, end_idx[1:])]
+        #
+        # # P(action distribution of agent j | k takes action taken)
+        # action_dist = []    # action_dist dim = [num agents, batch_size, num agents - 1, action_dim]
+        # for k, no in enumerate(next_obs):
+        #     prob_pi_j = []
+        #     for j, pi_j in enumerate(self.agents):
+        #         if j == k: continue     # computing effect on other agents
+        #         final_obs_j = final_obs[:, start_end[j][0]:start_end[j][1]]
+        #         prob_pi_j.append(F.softmax(pi_j.policy(final_obs_j), dim=1).unsqueeze(1))
+        #     prob_pi_j = torch.cat(prob_pi_j, dim=1)
+        #     action_dist.append(prob_pi_j)
+        #
+        # # [P(k takes action 0) * (action distribution of agent j | k takes action 0) + ...]
+        # marginal_action_dists = []
+        # for k, (no, pi) in enumerate(zip(next_obs, self.agents)):
+        #     batch_size, action_dim = acs_pi_k[k].shape
+        #     all_acs_pi_k = torch.nn.functional.one_hot(torch.arange(action_dim)).float()
+        #     for one_hot_ac in all_acs_pi_k:
+        #         # replace inside the original acs_pi_k, k's action
+        #         acs_pi_k_modified = acs_pi_k
+        #         acs_pi_k_modified[k] = one_hot_ac.unsqueeze(0).repeat(batch_size, 1)
+        #         tilde_final_obs = self.transition(torch.cat((*next_obs, *acs_pi_k_modified), dim=1))
+        #
+        #         for j, pi_j in enumerate(self.agents):
+        #             if j == k: continue  # computing effect on other agent
+        #             tilde_final_obs_j = tilde_final_obs[:, start_end[j][0]:start_end[j][1]]
+        #             mrgn_dist_acs_j = F.softmax(pi_j.policy(tilde_final_obs_j), dim=1).unsqueeze(1)
+        #         marginal_action_dists.append()
+        acs_src = []
+        prob_src = []
+        for no, source in zip(next_obs, self.agents):
+            acs_src.append(gumbel_softmax(source.policy(no), device=self.device.get_device(), hard=True))
+            prob_src.append(gumbel_softmax(source.policy(no), device=self.device.get_device(), hard=False))
 
-            acs_pi = []
-            prob_pi = []
-            for no, pi in zip(next_obs, self.agents):
-                acs_pi.append(gumbel_softmax(pi.policy(no), device=self.device.get_device(), hard=True))
-                prob_pi.append(gumbel_softmax(pi.policy(no), device=self.device.get_device(), hard=False))
+        trans_in = torch.cat((*next_obs, *acs_src), dim=1)
+        trans_out = self.transition(trans_in)
+        prob_plan = []
+        end_idx = [0] + np.cumsum([ne_ob.shape[1] for ne_ob in next_obs]).tolist()
+        start_end = [(start, end) for start, end in zip(end_idx, end_idx[1:])]
+        for i, (no, planning) in enumerate(zip(next_obs, self.planning)):
+            nno = trans_out[:, start_end[i][0]:start_end[i][1]]
+            acs_ = []
+            for j, ac in enumerate(acs_src):
+                if j == i: continue
+                nno_other = trans_out[:, start_end[j][0]:start_end[j][1]]
+                acs_.append(
+                    gumbel_softmax(self.agents[j].policy(nno_other), device=self.device.get_device(), hard=True))
+            acs_ = torch.cat(acs_, dim=1)
+            plan_in = torch.cat((no, nno, acs_), dim=1)
 
-            trans_in = torch.cat((*next_obs, *acs_pi), dim=1)
-            trans_out = self.transition(trans_in)
-            prob_plan = []
+            prob_plan.append(gumbel_softmax(planning(plan_in), device=self.device.get_device(), hard=False))
+        prob_plan = torch.cat(prob_plan, dim=1)
+        prob_src = torch.cat(prob_src, dim=1)
 
-            end_idx = [0] + np.cumsum([ne_ob.shape[1] for ne_ob in next_obs]).tolist()
-            start_end = [(start, end) for start, end in zip(end_idx, end_idx[1:])]
-            for i, (no, planning) in enumerate(zip(next_obs, self.planning)):
-                nno = trans_out[:, start_end[i][0]:start_end[i][1]]
-                acs_ = []
-                for j, ac in enumerate(acs_pi):
-                    if j == i: continue # computing effect on other agent
-                    nno_other = trans_out[:, start_end[j][0]:start_end[j][1]]
-                    acs_.append(gumbel_softmax(self.agents[j].policy(nno_other), device=self.device.get_device(), hard=True))
-                acs_ = torch.cat(acs_, dim=1)
-                plan_in = torch.cat((no, nno, acs_), dim=1)
+        # for returning the si for individual agents
+        end_idx = [0] + np.cumsum([ne_ac.shape[1] for ne_ac in acs_src]).tolist()
+        start_end = [(start, end) for start, end in zip(end_idx, end_idx[1:])]
 
-                prob_plan.append(gumbel_softmax(planning(plan_in), device=self.device.get_device(), hard=False))
-
-            prob_plan = torch.cat(prob_plan, dim=1)
-            prob_pi = torch.cat(prob_pi, dim=1)
-            acs_pi = torch.cat(acs_pi, dim=1)
-
-            SI = acs_pi * prob_plan - acs_pi * prob_pi
-            i_rews = SI.mean() * torch.ones((1, rewards.shape[1]))
-            return i_rews.numpy()
+        acs_src = torch.cat(acs_src, dim=1)
+        si = acs_src * prob_plan - acs_src * prob_src
+        result = torch.cat([si[:, start:end] for (start, end) in start_end], dim=0)
+        return result
 
 
 class Trainer(object):
@@ -61,12 +99,13 @@ class Trainer(object):
         self.planning = si.planning
         self.device = si.device
         self.agents = si.agents
+        self.computer = si.computer
 
         self.transition_optimizer = Adam(self.transition.parameters(), lr=si.lr)
         flatten = lambda l: [item for sublist in l for item in sublist]
         params_planning = flatten([list((mlp.parameters())) for mlp in self.planning])
         params_agents = flatten([list(a.policy.parameters()) for a in self.agents])
-        self.pi_optimizer = Adam(params_agents, lr=si.lr)
+        self.si_optimizer = Adam(params_agents + params_planning, lr=si.lr)
         self.niter = 0
 
     def update(self, sample, logger):
@@ -80,38 +119,11 @@ class Trainer(object):
         trans_loss.backward()
         self.transition_optimizer.step()
 
-        acs_pi = []
-        prob_pi = []
-        for no, pi in zip(next_obs, self.agents):
-            acs_pi.append(gumbel_softmax(pi.policy(no), device=self.device.get_device(), hard=True))
-            prob_pi.append(gumbel_softmax(pi.policy(no), device=self.device.get_device(), hard=False))
-        with torch.no_grad():
-            trans_in = torch.cat((*next_obs, *acs_pi), dim=1)
-            trans_out = self.transition(trans_in)
-        prob_plan = []
-
-        end_idx = [0] + np.cumsum([ne_ob.shape[1] for ne_ob in next_obs]).tolist()
-        start_end = [(start, end) for start, end in zip(end_idx, end_idx[1:])]
-        for i, (no, planning) in enumerate(zip(next_obs, self.planning)):
-            nno = trans_out[:, start_end[i][0]:start_end[i][1]]
-            acs_ = []
-            for j, ac in enumerate(acs):
-                if j == i: continue
-                nno_other = trans_out[:, start_end[j][0]:start_end[j][1]]
-                acs_.append(gumbel_softmax(self.agents[j].policy(nno_other), device=self.device.get_device(), hard=True))
-            acs_ = torch.cat(acs_, dim=1)
-            plan_in = torch.cat((no, nno, acs_), dim=1)
-            prob_plan.append(gumbel_softmax(planning(plan_in), device=self.device.get_device(), hard=False))
-
-        prob_plan = torch.cat(prob_plan, dim=1)
-        prob_pi = torch.cat(prob_pi, dim=1)
-        acs_pi = torch.cat(acs_pi, dim=1)
-
-        #self.pi_optimizer.zero_grad()
-        SI = acs_pi * prob_plan - acs_pi * prob_pi
+        self.si_optimizer.zero_grad()
+        SI = self.computer.compute(next_obs)
         i_rews = -SI.mean()
-        #i_rews.backward()
-        #self.pi_optimizer.step()
+        i_rews.backward()
+        self.si_optimizer.step()
 
         if logger is not None:
             logger.add_scalars('si/losses',
@@ -138,7 +150,11 @@ class SocialInfluence(BaseEmpowerment):
         self.trainer = Trainer(self)
 
     def compute(self, rewards, next_obs):
-        return self.computer.compute(rewards, next_obs)
+        next_obs = [Variable(torch.Tensor(np.vstack(next_obs[:, i])),
+                             requires_grad=False) for i in range(next_obs.shape[1])]
+        si = self.computer.compute(next_obs)
+        i_rews = si.mean(-1)
+        return i_rews.detach().numpy().reshape(1, -1)
 
     def update(self, sample, logger=None):
         return self.trainer.update(sample, logger)

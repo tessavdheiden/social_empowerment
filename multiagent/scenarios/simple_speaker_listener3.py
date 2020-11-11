@@ -1,4 +1,5 @@
 import numpy as np
+import random
 from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
 
@@ -112,6 +113,7 @@ class Scenario(BaseScenario):
         entity_pos = []
         for entity in world.landmarks:
             entity_pos.append(entity.state.p_pos - agent.state.p_pos)
+        random.shuffle(entity_pos)
 
         # communication of all other agents
         comm = []
@@ -124,6 +126,7 @@ class Scenario(BaseScenario):
             obs_pos = []
             for entity in world.obstacles:
                 obs_pos.append(entity.state.p_pos)
+            random.shuffle(obs_pos)
             return np.concatenate([goal_pos[0]] + [goal_pos[1]] + obs_pos)
         # listener
         if agent.silent:
