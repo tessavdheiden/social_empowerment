@@ -1,9 +1,10 @@
 import numpy as np
 from multiagent.core import Surface, Landmark
 from multiagent.dynamic_agent import DynamicAgent
-from multiagent.road_world import RoadWorld, ROAD_COLOR, TRACK_RAD
+from cars.road_world import RoadWorld
+from cars.road_creator import ROAD_COLOR, TRACK_RAD
 from multiagent.scenario import BaseScenario
-from multiagent.scenarios.car_dynamics import Car, HULL_POLY1, HULL_POLY2, HULL_POLY3, HULL_POLY4, SIZE
+from cars.car_dynamics import Car, HULL_POLY1, HULL_POLY2, HULL_POLY3, HULL_POLY4, SIZE
 
 
 colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],

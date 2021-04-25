@@ -4,8 +4,10 @@ from gym.utils import seeding
 from multiagent.rendering import Viewer, Transform
 import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revoluteJointDef, contactListener)
+
+
 from multiagent.core import World
-from multiagent.scenarios.road_creator import RoadCreator
+from cars.road_creator import RoadCreator
 
 STATE_W = 16   # less than Atari 160x192
 STATE_H = 16

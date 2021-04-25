@@ -5,8 +5,6 @@ from multiagent.road_world import RoadWorld, STATE_H, STATE_W
 from multiagent.scenarios.road_creator import ROAD_COLOR, TRACK_RAD
 from multiagent.scenario import BaseScenario
 from multiagent.scenarios.car_dynamics import Car, HULL_POLY1, HULL_POLY2, HULL_POLY3, HULL_POLY4, SIZE
-import scipy.ndimage
-
 
 colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
                    [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15],
