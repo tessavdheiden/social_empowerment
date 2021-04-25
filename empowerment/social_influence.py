@@ -8,7 +8,8 @@ MSELoss = torch.nn.MSELoss()
 
 from utils.misc import gumbel_softmax
 from utils.networks import MLPNetwork
-from empowerment import Device, BaseEmpowerment
+from empowerment.device import Device
+from empowerment.base_empowerment import BaseEmpowerment
 
 
 class Computer(object):

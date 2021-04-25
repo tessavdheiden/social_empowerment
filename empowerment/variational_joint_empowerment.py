@@ -5,8 +5,8 @@ from torch.autograd import Variable
 MSELoss = torch.nn.MSELoss()
 
 
-from empowerment import Device
-from variational_empowerment import VariationalBaseEmpowerment
+from empowerment.device import Device
+from empowerment.variational_empowerment import VariationalBaseEmpowerment
 from utils.misc import gumbel_softmax
 from utils.networks import MLPNetwork
 

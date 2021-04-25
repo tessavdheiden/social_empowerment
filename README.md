@@ -26,6 +26,17 @@ If you want to checkout the training loss on tensorboard, activate the VE and us
 tensorboard --logdir models/model_name
 ```
 
+If you want to train methods from the paper for scenario 'simple_order':
+
+```
+python main.py simple_order si --social_influence
+python main.py simple_order te --variational_transfer_all_action_pi_empowerment
+python main.py simple_order je --variational_joint_empowerment
+```
+
+If you want to train methods from the paper for scenario 'cars':
+
+
 ## Simulation Videos
 
 ### Cooperative Communication

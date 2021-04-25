@@ -5,10 +5,10 @@ from torch.autograd import Variable
 MSELoss = torch.nn.MSELoss()
 
 
-from variational_empowerment import VariationalBaseEmpowerment
+from empowerment.variational_empowerment import VariationalBaseEmpowerment
 from utils.misc import gumbel_softmax
 from utils.networks import MLPNetwork
-from empowerment import Device
+from empowerment.device import Device
 
 
 class ComputerTransferAllActionPi(object):

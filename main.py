@@ -3,7 +3,6 @@ import torch
 import time
 import os
 import numpy as np
-import itertools
 from gym.spaces import Box, Discrete
 from pathlib import Path
 from torch.autograd import Variable
@@ -12,10 +11,8 @@ from utils.make_env import make_env
 from utils.buffer import ReplayBuffer
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 from algorithms.maddpg import MADDPG
-from empowerment import DummyEmpowerment
-from variational_joint_empowerment import VariationalJointEmpowerment
-from variational_transfer_all_action_pi_empowerment import VariationalTransferAllActionPiEmpowerment
-from social_influence import SocialInfluence
+from empowerment import *
+
 
 USE_CUDA = torch.cuda.is_available()
 
