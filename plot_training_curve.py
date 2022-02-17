@@ -1,10 +1,11 @@
 import argparse
 import numpy as np
-from numpy import load
 from pathlib import Path
 import json
 import os
+from collections import defaultdict
 import matplotlib.pyplot as plt
+from scipy.ndimage.filters import gaussian_filter1d
 
 
 colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
@@ -22,54 +23,43 @@ def load_data(file_path, name, agent_num=0):
                 return d[:, 2]
 
 
-def plot_data(y, alg_name, color, ax, subsample=10):
-    y = y[:len(y)-(len(y)%subsample)]
-    mean = np.mean(y.reshape(-1, subsample), axis=1)
-    std = np.std(y.reshape(-1, subsample), axis=1)
-    ax.plot(np.arange(mean.shape[0]), mean, color=color, label=alg_name)
-    ax.fill_between(np.arange(mean.shape[0]), mean - std, mean + std, color=color, alpha=0.2)
-    ax.grid('on')
-    ax.set_xlabel('TrainSteps')
-
-
 def plot_training_curve(config):
-    plt.rc('font', family='serif')
     model_path = Path('./models') / config.env_id
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 5))
-    color_list = {'maddpg': [0.65, 0.15, 0.15], 'ddpg': [0.15, 0.65, 0.15], 'maddpg+ve3': [0.15, 0.15, 0.65],
-                  'maddpg+si': [0.65, 0.15, 0.65]}
+
+    names = ['baseline', 'empowerment', 'random', 'maddpg-rnn']
+    data = defaultdict(np.array)
 
     curve_name = 'rew_loss' # 'pol_loss'  'vf_loss'
     agent_num = 0
     axis = 1
-    curve = {}
-    for r, d, f in os.walk(model_path):
-        for file in f:
-            if file.endswith(".json"):
-                algorithm_name = r.split('/')[2]
-                run = r.split('/')[3][-1]
+    n_points = 100
 
-                if algorithm_name not in color_list: continue
-                file_path = os.path.join(r, file)
-                y = load_data(file_path, name=curve_name, agent_num=agent_num)
-                if algorithm_name in curve:
-                    curve[algorithm_name] += y
-                    curve[algorithm_name] /= 2
-                else:
-                    curve[algorithm_name] = y
+    # find files
+    for r, _, files in os.walk(model_path):
+        for f in files:
+            if f.endswith(".json"):
+                name = r.split('/')[2]
+                if name not in names: continue
+                y = load_data(os.path.join(r, f), name=curve_name, agent_num=agent_num)
+                data[name] = y
 
-    for (algorithm_name, y) in curve.items():
-        plot_data(y, alg_name=algorithm_name, color=color_list[algorithm_name], ax=ax[axis], subsample=500)
-    ax[axis].set_ylabel('AvarageReturn', fontsize=11)
-    #ax[axis].legend()
-    #ax[1].set_ylim([-8, -5])
+    plt.rc('font', family='serif')
+    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 5))
 
+    data = dict(sorted(data.items()))
 
-    ax[0].set_ylabel('PolicyLoss', fontsize=11)
-    ax[2].set_ylabel('CriticLoss', fontsize=11)
-    ax[0].legend()
+    colors = ['r', 'g', 'b', 'c']
+    for i, (name, data) in enumerate(data.items()):
+        y_smoothed = gaussian_filter1d(data, sigma=40)
+        ax[axis].plot(y_smoothed, colors[i], label=name)
+        # ax[axis].plot(y, color, alpha=0.1)
+        ax[axis].set_xlabel('Training steps')
+        ax[axis].legend()
 
-
+    ax[axis].set_ylabel('Avarage return', fontsize=11)
+    ax[axis].set_ylim([-4, 1])
+    # ax[0].set_ylabel('PolicyLoss', fontsize=11)
+    # ax[2].set_ylabel('CriticLoss', fontsize=11)
     plt.tight_layout()
     plt.savefig(model_path / f'learning_curve_agent{agent_num}.png')
 
@@ -77,8 +67,5 @@ def plot_training_curve(config):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("env_id", help="Name of environment")
-    parser.add_argument("--incremental", default=None, type=int,
-                        help="Load incremental policy from given episode " +
-                             "rather than final policy")
     config = parser.parse_args()
     plot_training_curve(config)
