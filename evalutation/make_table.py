@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def print_table(config):
-    model_path = (Path('./models') / config.env_id / config.model_name / ('run%i' % config.run_num))
+    model_path = (Path('models') / config.env_id / config.model_name / ('run%i' % config.run_num))
     if config.incremental is not None:
         model_path = model_path / 'incremental' / ('model_ep%i.pt' % config.incremental)
     else:
@@ -23,7 +23,7 @@ def print_table(config):
         print(f'reward: \t obs_hit: \t avg_dist:  \t fin_dis:  \t target_reach: ')
         print(f'\t {reward:.3f}\t {collisions:.3f} \t {avg_dist:.3f} \t {fin_dist:.3f} \t {target_reach:.3f}')
 
-    elif config.env_id == 'simple_speaker_listener3':
+    elif 'simple_speaker_listener' in config.env_id:
         ep, t, n_agents, metrics = all_infos.shape
         avg_dist = all_infos[:, :, 1, 1].mean()
         fin_dist = all_infos[:, -5:, 1, 1].mean()

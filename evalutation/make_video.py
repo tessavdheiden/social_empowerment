@@ -7,10 +7,10 @@ from pathlib import Path
 from torch.autograd import Variable
 from utils.make_env import make_env
 from algorithms.maddpg import MADDPG
-from numpy import save
+
 
 def run(config):
-    model_path = (Path('./models') / config.env_id / config.model_name /
+    model_path = (Path('models') / config.env_id / config.model_name /
                   ('run%i' % config.run_num))
     if config.incremental is not None:
         model_path = model_path / 'incremental' / ('model_ep%i.pt' %
@@ -21,18 +21,18 @@ def run(config):
     if config.save_gifs:
         gif_path = model_path.parent / 'gifs' if not config.mixed_policies else model_path.parent / 'gifs_mixed'
         gif_path.mkdir(exist_ok=True)
+
     torch.manual_seed(config.seed)
     np.random.seed(config.seed)
     if config.mixed_policies:
-        maddpg = MADDPG.init_from_directory(Path('./models') / config.env_id / config.model_name)
+        maddpg = MADDPG.init_from_directory(Path('../models') / config.env_id / config.model_name)
     else:
         maddpg = MADDPG.init_from_save(model_path)
     env = make_env(config.env_id, benchmark=True, discrete_action=maddpg.discrete_action)
-    env.world.seed(config.seed)
+    env.seed(config.seed)
     maddpg.prep_rollouts(device='cpu')
     ifi = 1 / config.fps  # inter-frame interval
-    all_infos = np.empty((config.n_episodes, config.episode_length, maddpg.nagents, 10))
-    all_positions = np.zeros((config.n_episodes, config.episode_length, maddpg.nagents, 2))
+
     for ep_i in range(config.n_episodes):
         print("Episode %i of %i" % (ep_i + 1, config.n_episodes))
         obs = env.reset()
@@ -40,6 +40,7 @@ def run(config):
             frames = []
             frames.append(env.render('rgb_array')[0])
         env.render('human')
+        # env.agents[1].state.p_pos = np.array([0., 0.])
         for t_i in range(config.episode_length):
             calc_start = time.time()
             # rearrange observations to be per agent, and convert to torch Variable
@@ -47,11 +48,11 @@ def run(config):
                                   requires_grad=False) if not obs[i].ndim == 4 else Variable(torch.Tensor(obs[i]), requires_grad=False)
                          for i in range(maddpg.nagents)]
 
-            all_positions[ep_i, t_i] = env.get_positions()
             # get actions as torch Variables
             torch_actions = maddpg.step(torch_obs, explore=False)
             # convert actions to numpy arrays
             actions = [ac.data.numpy().flatten() for ac in torch_actions]
+            # actions[0] = np.array([0., 0., 0., 0., 0.], dtype=np.float32)
             obs, rewards, dones, infos = env.step(actions)
 
             if config.save_gifs:
@@ -62,8 +63,6 @@ def run(config):
             if elapsed < ifi:
                 time.sleep(ifi - elapsed)
             env.render('human')
-            if len(np.array(infos['n']).shape) < 4:
-                all_infos[ep_i, t_i, :, :len(infos['n'][-1])] = np.array(infos['n'])
 
         if config.save_gifs:
             gif_num = 0
@@ -71,14 +70,7 @@ def run(config):
                 gif_num += 1
             imageio.mimsave(str(gif_path / ('%i_%i.gif' % (gif_num, ep_i))),
                             frames, duration=ifi)
-
     env.close()
-
-    if config.save_stats:
-        stats_path = model_path.parent / 'stats' if not config.mixed_policies else model_path.parent / 'stats_mixed'
-        stats_path.mkdir(exist_ok=True)
-        save(f'{stats_path}/all_infos.npy', all_infos)
-        save(f'{stats_path}/all_positions.npy', all_positions)
 
 
 if __name__ == '__main__':
@@ -91,8 +83,6 @@ if __name__ == '__main__':
                         help="Random seed")
     parser.add_argument("run_num", default=1, type=int)
     parser.add_argument("--save_gifs", action="store_true",
-                        help="Saves gif of each episode into model directory")
-    parser.add_argument("--save_stats", action="store_true",
                         help="Saves gif of each episode into model directory")
     parser.add_argument("--incremental", default=None, type=int,
                         help="Load incremental policy from given episode " +

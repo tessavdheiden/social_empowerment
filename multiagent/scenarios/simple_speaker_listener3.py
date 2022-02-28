@@ -6,6 +6,8 @@ from multiagent.scenario import BaseScenario
 colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
                    [0.15, 0.65, 0.65], [0.65, 0.15, 0.65], [0.65, 0.65, 0.15]])
 
+# more landmarks and obstacles
+
 class Scenario(BaseScenario):
     def make_world(self):
         world = World()

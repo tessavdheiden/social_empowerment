@@ -24,10 +24,10 @@ def load_data(file_path, name, agent_num=0):
 
 
 def plot_training_curve(config):
-    model_path = Path('./models') / config.env_id
+    model_path = Path('models') / config.env_id
 
-    names = ['baseline', 'empowerment', 'random', 'maddpg-rnn']
-    data = defaultdict(np.array)
+    names = ['baseline', 'empowerment', 'social', 'maddpg', 'social_influence']
+    data = defaultdict(list)
 
     curve_name = 'rew_loss' # 'pol_loss'  'vf_loss'
     agent_num = 0
@@ -41,27 +41,40 @@ def plot_training_curve(config):
                 name = r.split('/')[2]
                 if name not in names: continue
                 y = load_data(os.path.join(r, f), name=curve_name, agent_num=agent_num)
-                data[name] = y
+                data[name].append(y)
+    avg_data = defaultdict(np.array)
+    for k,v in data.items():
+        tmp = np.asarray(v)
+        avg_data[k] = tmp.mean(0)
 
     plt.rc('font', family='serif')
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 5))
+    # plt.rc('axes', labelsize=16)
+    # plt.rcParams.update({'font.size': 16})
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(3, 3))
 
-    data = dict(sorted(data.items()))
+    # data = dict(sorted(avg_data.items()))
 
-    colors = ['r', 'g', 'b', 'c']
-    for i, (name, data) in enumerate(data.items()):
-        y_smoothed = gaussian_filter1d(data, sigma=40)
-        ax[axis].plot(y_smoothed, colors[i], label=name)
+    colors = ['r', 'g', 'b', 'gray']
+    for i, (name, values) in enumerate(data.items()):
+        y = np.asarray(values)
+        y_mean = y.mean(0)
+        x_vals = np.arange(len(y_mean))
+        n_runs = len(values)
+        print(n_runs)
+        y_std = y.std(0) / (n_runs**0.5 )
+        y_smoothed = gaussian_filter1d(y_mean, sigma=100)
+        ax.plot(y_smoothed, colors[i], label=name)
+        # ax.fill_between(x_vals, y_mean + y_std ,y_mean - y_std,alpha = 0.3)
         # ax[axis].plot(y, color, alpha=0.1)
-        ax[axis].set_xlabel('Training steps')
-        ax[axis].legend()
+        ax.set_xlabel('Training steps')
+        ax.legend()
 
-    ax[axis].set_ylabel('Avarage return', fontsize=11)
-    ax[axis].set_ylim([-4, 1])
+    ax.set_ylabel('Avarage return', fontsize=11)
+    ax.set_ylim([-4, 1])
     # ax[0].set_ylabel('PolicyLoss', fontsize=11)
     # ax[2].set_ylabel('CriticLoss', fontsize=11)
     plt.tight_layout()
-    plt.savefig(model_path / f'learning_curve_agent{agent_num}.png')
+    plt.savefig(model_path / f'learning_curve_scenario_{model_path.name}.png')
 
 
 if __name__ == '__main__':

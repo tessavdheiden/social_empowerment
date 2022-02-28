@@ -14,7 +14,7 @@ colors = np.array([[0.65, 0.15, 0.15], [0.15, 0.65, 0.15], [0.15, 0.15, 0.65],
 
 
 def load_data(config):
-    model_path = (Path('./models') / config.env_id / config.model_name / ('run%i' % config.run_num))
+    model_path = (Path('../models') / config.env_id / config.model_name / ('run%i' % config.run_num))
     model_path = model_path / 'incremental' / ('model_ep%i.pt' % config.incremental) if config.incremental is not None else model_path / 'model.pt'
     stats_path = model_path.parent / 'stats'
     gif_path = model_path.parent / 'gifs'
@@ -51,7 +51,7 @@ def plot_snapshots_grid(config, all_infos, all_images, all_positions, stats_path
     plt.savefig(f'{stats_path}/rewards_snapshots_episode_{config.ep_num}.png')
 
 
-def plot_all_in_one(config, all_infos, all_images, all_positions, stats_path, alpha=0.1):
+def plot_all_in_one(config, all_infos, all_images, all_positions, stats_path, alpha=0.01):
     n_tot = len(list(ImageSequence.Iterator(all_images)))
     n_img = 20
     imgs = [None]*n_img
@@ -77,19 +77,29 @@ if __name__ == '__main__':
     parser.add_argument("--incremental", default=None, type=int,
                         help="Load incremental policy from given episode " +
                              "rather than final policy")
-    parser.add_argument("ep_num", default=2, type=int)
     parser.add_argument("--with_empowerment",
                         action='store_true')
     parser.add_argument("--grid", default=0, type=int)
     parser.add_argument("--with_speech",
                         action='store_true')
+    parser.add_argument("--save_plots", action="store_true",
+                        help="Saves plot of all episodes into model directory")
     config = parser.parse_args()
 
     plot_fn = plot_all_in_one
+
+    model_path = (Path('../models') / config.env_id / config.model_name / ('run%i' % config.run_num))
+    if config.incremental is not None:
+        model_path = model_path / 'incremental' / ('model_ep%i.pt' % config.incremental)
+    else:
+        model_path = model_path / 'model.pt'
+    if config.save_plots:
+        plot_path = model_path.parent / 'plots'
+        plot_path.mkdir(exist_ok=True)
 
     for i in range(10):
         config.ep_num = i
         all_infos, all_images, all_positions, stats_path = load_data(config)
 
-        plot_fn(config, all_infos, all_images, all_positions, stats_path)
+        plot_fn(config, all_infos, all_images, all_positions, plot_path)
 
