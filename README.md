@@ -1,10 +1,10 @@
-# Multi-Agent Reinforcement Learning for Cooperative Coordination
-This repo contains an extension of the [*MADDPG*](https://github.com/shariqiqbal2810/maddpg-pytorch) algorithm 
+# Reliably Re-Acting to Partner's Actions with the Social Intrinsic Motivation of Transfer Empowerment
+This repo contains the code accompanying the paper [Reliably Re-Acting to Partner's Actions with the Social Intrinsic Motivation of Transfer Empowerment](https://arxiv.org/abs/2203.03355).
+It an extension of the [*MADDPG*](https://github.com/shariqiqbal2810/maddpg-pytorch) algorithm 
 and simulator which is a combination of [particle-env](https://github.com/openai/multiagent-particle-envs) and
 [OpenAI Gym Car](https://github.com/openai/gym/blob/master/gym/envs/box2d/car_racing.py).
 
-The MADDPG agents can have complex rules, which make them unable to cooperate with novel partners. 
-My solution is to extend it with Empowerment, a information theoretic notion, giving agents the ability to be in control.
+We consider multi-agent reinforcement learning (MARL) for cooperative communication and coordination tasks. MARL agents can be brittle because they can overfit their training partners' policies. This overfitting can produce agents that adopt policies that act under the expectation that other agents will act in a certain way rather than react to their actions. Our objective is to bias the learning process towards finding reactive strategies towards other agents' behaviors. Our method, transfer empowerment, measures the potential influence between agents' actions. Results from three simulated cooperation scenarios support our hypothesis that transfer empowerment improves MARL performance. We discuss how transfer empowerment could be a useful principle to guide multi-agent coordination by ensuring reactiveness to one's partner.
 
 ## Requirements
 
